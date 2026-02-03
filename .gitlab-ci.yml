@@ -5,17 +5,23 @@ deploy_production:
   stage: deploy
   only:
     - main
+  image: docker:24.0.5 # Includes Docker CLI
+  services:
+    - docker:24.0.5-dind # Docker-in-Docker service for building containers
+
+  variables:
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""  # Disable TLS for DinD in CI
+
   before_script:
-    - 'which ssh-agent || ( apt-get update -y && apt-get install openssh-client -y )'
-    - eval $(ssh-agent -s)
-    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
-    - mkdir -p ~/.ssh
-    - chmod 700 ~/.ssh
-    - ssh-keyscan -H $SERVER_IP >> ~/.ssh/known_hosts
+    # Ensure SSH is installed
+    - apk add --no-cache openssh-client
 
   script:
-    - |
-      ssh runner@$SERVER_IP << 'EOF'
+    - echo "Starting deployment..."
+    # SSH into server using private key directly
+    - ssh -i <(echo "$SSH_PRIVATE_KEY") -o StrictHostKeyChecking=no runner@$SERVER_IP << 'EOF'
+        echo "Navigating to deploy directory..."
         cd $DEPLOY_PATH
 
         echo "Pulling latest code..."
@@ -25,5 +31,5 @@ deploy_production:
         docker compose down
         docker compose up -d --build
 
-        echo "Deployment complete"
+        echo "Deployment complete!"
       EOF
