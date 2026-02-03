@@ -1,0 +1,29 @@
+stages:
+  - deploy
+
+deploy_production:
+  stage: deploy
+  only:
+    - main
+  before_script:
+    - 'which ssh-agent || ( apt-get update -y && apt-get install openssh-client -y )'
+    - eval $(ssh-agent -s)
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - ssh-keyscan -H $SERVER_IP >> ~/.ssh/known_hosts
+
+  script:
+    - |
+      ssh runner@$SERVER_IP << 'EOF'
+        cd $DEPLOY_PATH
+
+        echo "Pulling latest code..."
+        git pull origin main
+
+        echo "Rebuilding container..."
+        docker compose down
+        docker compose up -d --build
+
+        echo "Deployment complete"
+      EOF
