@@ -6,11 +6,7 @@ deploy_production:
   only:
     - main
   script:
-    - git config --global --add safe.directory /home/runner/app
-    - cd /home/runner/app
-    - git fetch origin
-    - git reset --hard origin/main
-    - docker compose down
+    - echo "Deploying to production..."
+    - docker compose down || true
     - docker compose up -d --build
-  tags:
-    - deployment
+    - docker compose ps
