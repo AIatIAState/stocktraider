@@ -5,36 +5,34 @@ deploy_production:
   stage: deploy
   only:
     - main
-  image: docker:24.0.5
-  services:
-    - docker:24.0.5-dind
-
-  variables:
-    DOCKER_HOST: tcp://docker:2375
-    DOCKER_TLS_CERTDIR: ""  # Disable TLS for DinD
+  image: alpine:latest
 
   before_script:
-    - apk add --no-cache openssh-client bash git
+    # Install SSH client and git
+    - apk add --no-cache openssh-client git bash
 
   script:
     - echo "Starting deployment..."
-    # Write private key to a temp file
+
+    # Write private key to file
     - mkdir -p ~/.ssh
     - echo "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_rsa
     - chmod 600 ~/.ssh/id_rsa
 
-    # Optional: add server to known_hosts
+    # Add server to known_hosts (avoids manual confirmation)
     - ssh-keyscan -H $SERVER_IP >> ~/.ssh/known_hosts
 
-    # SSH into server using the temp key file
+    # SSH into server and run deployment commands
     - ssh -i ~/.ssh/id_rsa runner@$SERVER_IP << 'EOF'
+        set -e  # Exit if any command fails
+
         echo "Navigating to deploy directory..."
         cd $DEPLOY_PATH
 
         echo "Pulling latest code..."
         git pull origin main
 
-        echo "Rebuilding container..."
+        echo "Rebuilding Docker Compose containers..."
         docker compose down
         docker compose up -d --build
 
