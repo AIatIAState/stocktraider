@@ -5,36 +5,10 @@ deploy_production:
   stage: deploy
   only:
     - main
-  image: alpine:latest
-
-  before_script:
-    # Install SSH client and git
-    - apk add --no-cache openssh-client git bash
-
   script:
-    - echo "Starting deployment..."
-
-    # Write private key to file
-    - mkdir -p ~/.ssh
-    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_rsa
-    - chmod 600 ~/.ssh/id_rsa
-
-    # Add server to known_hosts (avoids manual confirmation)
-    - ssh-keyscan -H $SERVER_IP >> ~/.ssh/known_hosts
-
-    # SSH into server and run deployment commands
-    - ssh -i ~/.ssh/id_rsa runner@$SERVER_IP << 'EOF'
-        set -e  # Exit if any command fails
-
-        echo "Navigating to deploy directory..."
-        cd $DEPLOY_PATH
-
-        echo "Pulling latest code..."
-        git pull origin main
-
-        echo "Rebuilding Docker Compose containers..."
-        docker compose down
-        docker compose up -d --build
-
-        echo "Deployment complete!"
-      EOF
+    - cd /home/runner/app
+    - git pull
+    - docker compose down
+    - docker compose up -d --build
+  tags:
+    - deployment

@@ -6,15 +6,9 @@ import ActiveStocksPieChart from './ActiveStocksPieChart.tsx';
 import CustomizedDataGrid from './CustomizedDataGrid';
 import HighlightedCard from './HighlightedCard';
 import OptionBarChart from './OptionBarChart.tsx';
-import StockSearch from "./StockSearch.tsx";
-import {useState} from "react";
-import type {Bar} from "../services/api.ts";
-import StockScatterChart from "./charts/StockScatterChart.tsx";
-// import StockPatternRecognitionGrid from "./StockPatternRecognitionGrid.tsx";
 
 
 export default function MainGrid() {
-    const [data, setData] = useState<Bar[]>([]);
 
 
 
@@ -24,10 +18,10 @@ export default function MainGrid() {
       <Typography component="h2" variant="h6" sx={{ mb: 2 }}>
         Overview
       </Typography>
-        <StockSearch setData={setData}/>
+        {/*<StockSearch setBars={setData}/>*/}
         <br/>
         <br/>
-        <StockScatterChart data={data}/>
+        {/*<StockScatterChart data={data}/>*/}
         <br/>
         <br/>
         {/*<StockPatternRecognitionGrid data={data}/>*/}
