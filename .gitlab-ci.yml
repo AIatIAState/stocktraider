@@ -6,7 +6,15 @@ deploy_production:
   only:
     - main
   script:
+    - echo "Cleaning up Docker resources..."
+    - docker system prune -af --volumes
+    - echo "Checking disk space..."
+    - df -h /
+    - echo "Linking Database..."
+    - cp /home/runner/stocks.db ./data/stocks.db
     - echo "Deploying to production..."
     - docker compose down || true
     - docker compose up -d --build
     - docker compose ps
+  tags:
+    - deployment
