@@ -6,7 +6,7 @@ services:
       args:
         VITE_API_BASE: http://localhost:5000
     ports:
-      - "8080:3000"
+      - "8080:8080"
     depends_on:
       - fastapi
   fastapi:
