@@ -1,6 +1,6 @@
 import {
     Accordion,
-    AccordionSummary, Button,
+    AccordionSummary, Button, Card, CardContent,
     Paper,
     Table, TableBody,
     TableCell,
@@ -73,7 +73,7 @@ function SimilarCharts(props: SimilarChartsProps){
         return <></>
     }
     return <>
-        {loading ? <Stack direction={'row'} alignItems={'center'} spacing={2}><Typography variant={'h4'}>Historical Trend Analysis</Typography><GradientCircularProgress/></Stack> :
+        {loading ? <Card><CardContent><Stack direction={'row'} alignItems={'center'} spacing={2}><Typography variant={'h4'}>Historical Trend Analysis</Typography><GradientCircularProgress/></Stack></CardContent></Card> :
                     patterns != null && patterns.length === 0 ? <Typography variant={'h6'}>This week's prices of {props.symbol} stock is not mathematically aligned with historical data.</Typography> :
                     <Accordion style={{padding:'16px'}}>
                         <AccordionSummary expandIcon={<ExpandMoreIcon />}>

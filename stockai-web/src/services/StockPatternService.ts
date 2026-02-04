@@ -15,6 +15,6 @@ export async function fetchStockPatterns(stockSymbol: string, timeframe: "daily"
         const response = await fetch(`${API_BASE}/api/getPatterns?${params.toString()}`)
         return response.json() as Promise<{results: StockPattern[]}>
     } catch (err) {
-        throw new Error(err instanceof Error ? err.message : 'Failed to fetch symbols');
+        throw new Error(err instanceof Error ? err.message : 'Failed to fetch patterns');
     }
 }

@@ -4,7 +4,8 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 from Connector import get_connection
-from models.PatternRecognition import get_dtw_patterns
+from PatternRecognition import get_dtw_patterns
+from Forecasting import get_forecast
 
 app = FastAPI()
 
@@ -97,3 +98,11 @@ def get_patterns(symbol: str = Query(..., min_length=1),
     similarity_score: int | None = Query(None)):
 
     return get_dtw_patterns(symbol, timeframe, trend_length, similarity_score)
+
+@app.get("/api/getForecasts")
+def get_forecasts(symbol: str = Query(..., min_length=1),
+                  timeframe: str = Query("daily"),
+                  forecast_length: int | None = Query(None, )):
+    if forecast_length is None:
+        forecast_length = 7
+    return get_forecast(symbol, timeframe, forecast_length)
