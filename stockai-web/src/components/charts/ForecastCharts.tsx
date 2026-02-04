@@ -38,19 +38,17 @@ export function ForecastCharts(props: ForecastChartsProps){
         return <></>
     }
     return <>
-        {loading ? <Card><CardContent><Stack direction={'row'} alignItems={'center'} spacing={2}><Typography variant={'h4'}>Price Forecasting</Typography><GradientCircularProgress/></Stack></CardContent></Card> :
+        {loading ? <Card><CardContent><Stack direction={'row'} alignItems={'center'} spacing={2}><Typography variant={'h4'}>Stock Price Forecasting</Typography><GradientCircularProgress/></Stack></CardContent></Card> :
                 <Accordion style={{padding:'16px'}}>
                     <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                         <Stack direction={'row'} alignItems={'center'} spacing={2}>
-                            <Typography variant={'h4'}>Price Forecasting</Typography>
-                            <Typography variant={'h6'}>View several predictions of {props.symbol}'s prices for next week from ML and statistical models</Typography>
+                            <Typography variant={'h4'}>Stock Price Forecasting</Typography>
+                            <Typography variant={'h6'}>View several predictions of {props.symbol}'s prices for next week from ML and statistical models.</Typography>
                         </Stack>
                     </AccordionSummary>
                     <Grid container justifyContent={'space-around'} rowSpacing={'16pt'}>
-                        {forecasts.map((forecast) => (
-                            <>
-                                <StockScatterChart title={forecast.name} desc={forecast.summary} bars={forecast.forecast} symbol={props.symbol}/>
-                            </>
+                        {forecasts.slice(0,9).map((forecast) => (
+                            <StockScatterChart title={forecast.name} desc={forecast.summary} bars={forecast.forecast} symbol={props.symbol}/>
                         ))
                         }
                     </Grid>

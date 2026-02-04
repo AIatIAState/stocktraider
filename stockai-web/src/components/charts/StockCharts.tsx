@@ -37,7 +37,6 @@ export function StockCharts(props : StockChartsProps) {
         })
         return chartBars
     }, [props.bars, startDate, props.symbol])
-    console.log(startDate)
     if(props.bars.length == 0){
         if(startDate.getDate() != oneMonthAgo.getDate()){
             setStartDate(oneMonthAgo)
