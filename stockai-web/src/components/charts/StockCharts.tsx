@@ -1,4 +1,4 @@
-import {Card, CardContent, Grid, InputLabel} from "@mui/material";
+import {Grid, InputLabel} from "@mui/material";
 import type {Bar} from "../../services/api.ts";
 import StockScatterChart from "./StockScatterChart.tsx";
 import {useMemo, useState} from "react";
@@ -37,7 +37,6 @@ export function StockCharts(props : StockChartsProps) {
         })
         return chartBars
     }, [props.bars, startDate, props.symbol])
-    console.log(startDate)
     if(props.bars.length == 0){
         if(startDate.getDate() != oneMonthAgo.getDate()){
             setStartDate(oneMonthAgo)
@@ -86,18 +85,10 @@ export function StockCharts(props : StockChartsProps) {
             </Grid>
 
             <Grid size={{ xs: 12, md: 4}}>
-                <Card
-                    variant="outlined"
-                    sx={{ display: 'flex', flexDirection: 'column', gap: '8px', flexGrow: 1 }}
-                >
-                    <CardContent>
-                        <StockPieChart bars={chartBars}/>
-                    </CardContent>
-                </Card>
+                <StockPieChart bars={chartBars}/>
             </Grid>
             <Grid size={{ xs: 12}}>
-                <StockScatterChart bars={chartBars}/>
-
+                <StockScatterChart size={"big"} symbol={props.symbol} bars={chartBars as unknown as [{date: number, open: number}]}/>
             </Grid>
         </Grid>
         </>

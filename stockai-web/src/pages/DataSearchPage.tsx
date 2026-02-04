@@ -15,6 +15,7 @@ import StockSearch from "../components/StockSearch.tsx";
 import {StockCharts} from "../components/charts/StockCharts.tsx";
 import {BarsTable} from "../components/BarsTable.tsx";
 import SimilarCharts from "../components/charts/SimilarCharts.tsx";
+import {ForecastCharts} from "../components/charts/ForecastCharts.tsx";
 
 
 
@@ -43,6 +44,7 @@ export default function DataSearchPage(props: { disableCustomTheme?: boolean }) 
             <StockSearch setBars={setBars} setSymbol={setSymbol}/>
             <StockCharts bars={bars} symbol={symbol}/>
             <SimilarCharts bars={bars} symbol={symbol}/>
+            <ForecastCharts symbol={symbol}/>
             <BarsTable bars={bars}/>
         </Box>
       </Container>

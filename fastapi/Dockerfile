@@ -4,6 +4,11 @@ FROM python:3.12-slim
 # Set the working directory inside the container
 WORKDIR /app
 
+# Install system dependencies required by LightGBM
+RUN apt-get update && apt-get install -y \
+    libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
 # Create a non-root user to run under
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
 

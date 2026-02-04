@@ -1,4 +1,6 @@
 fastapi
 uvicorn[standard]
 dtaidistance==2.3.13
-darts
+u8darts[notorch]
+lightgbm
+scikit-learn

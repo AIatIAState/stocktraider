@@ -5,8 +5,8 @@ import Chip from '@mui/material/Chip';
 import Typography from '@mui/material/Typography';
 import Stack from '@mui/material/Stack';
 import {LineChart} from '@mui/x-charts/LineChart';
-import type {Bar} from "../../services/api.ts";
 import { useMemo } from "react";
+import HoverableTooltip from "../HoverableTooltip.tsx";
 
 
 function getDateFromYYYYMMDD(yyyymmdd: string): Date {
@@ -17,7 +17,11 @@ function getDateFromYYYYMMDD(yyyymmdd: string): Date {
     return new Date(Date.UTC(year, month, day));
 }
 export interface StockScatterChartProps {
-        bars: Bar[]
+        bars: [{ date: number, open: number }],
+        symbol: string,
+        title?: string,
+        desc?: string,
+        size?: "big" | "small"
 }
 export default function StockScatterChart(props: StockScatterChartProps) {
     const theme = useTheme();
@@ -33,7 +37,7 @@ export default function StockScatterChart(props: StockScatterChartProps) {
         const opens: number[] = [];
         const dates: Date[] = [];
 
-        props.bars.forEach((item: Bar) => {
+        props.bars.forEach((item) => {
             const open = item.open ?? 0;
             const parsedDate = getDateFromYYYYMMDD(item.date.toString());
 
@@ -55,9 +59,9 @@ export default function StockScatterChart(props: StockScatterChartProps) {
     if(props.bars.length <= 0) {
         return <></>
     }
-
-    const symbol = props.bars[0].symbol
-  const heading = symbol + " Price"
+    const symbol = props.symbol
+  const heading = props.title ? props.title : symbol + " Price"
+    const desc = props.desc ? props.desc : null
     const percentage = ((props.bars[props.bars.length - 1].open! - props.bars[props.bars.length - 2].open!) / props.bars[props.bars.length - 2].open! * 100)
   const colorPalette = [
     theme.palette.primary.light,
@@ -66,7 +70,7 @@ export default function StockScatterChart(props: StockScatterChartProps) {
   ];
 
   return (
-    <Card variant="outlined" sx={{ width: '100%' }}>
+    <Card variant="outlined" sx={{ width: props.size == "big"? '100%' : '30%'}}>
       <CardContent>
         <Stack sx={{ justifyContent: 'space-between' }}>
           <Stack
@@ -77,10 +81,17 @@ export default function StockScatterChart(props: StockScatterChartProps) {
               gap: 1,
             }}
           >
-            <Typography variant="h4" component="p">
+            <Typography variant={props.size == "big" ? "h4" : "body1"} component="p">
                 {heading}
             </Typography>
             <Chip size="small" color={percentage > 0 ? "success" : "warning"} label={percentage > 0 ? "+" + percentage.toFixed(2) : percentage.toFixed(2)} />
+              {desc &&
+                  <HoverableTooltip>
+                      <Typography variant={props.size == "big" ? "h6": "body2"} component={"p"}>
+                          {desc}
+                      </Typography>
+                  </HoverableTooltip>
+              }
           </Stack>
         </Stack>
         <LineChart
@@ -89,14 +100,12 @@ export default function StockScatterChart(props: StockScatterChartProps) {
             {
               scaleType: 'time',
               data: dates,
-              tickInterval: (_index, i) => (i + 1) % 50 === 0,
-              height: 24,
               valueFormatter: (value: Date) => {
                   return `${value.getMonth() + 1}/${value.getDate()}/${value.getFullYear()}`;
               }
             },
           ]}
-          yAxis={[{ width: 50, max:max * 1.1, min:min * .9 > 0 ? min * .9 : 0}]}
+          yAxis={[{ max:max + 1, min:min - 1 > 0 ? min - 1 : 0}]}
           series={[{
               id: symbol,
               label: symbol,
@@ -107,7 +116,6 @@ export default function StockScatterChart(props: StockScatterChartProps) {
               stackOrder: 'ascending',
               data: opens,
         }]}
-          height={250}
           margin={{ left: 0, right: 20, top: 20, bottom: 0 }}
           grid={{ horizontal: true }}
           sx={{
