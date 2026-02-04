@@ -30,7 +30,6 @@ deploy_production:
     - docker compose up -d --build
     - docker compose ps
     - |
-    # Call /api/health to check connection.
       echo "Smoke check (web -> api)..."
       i=0
       passed=0
