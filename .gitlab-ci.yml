@@ -10,11 +10,12 @@ deploy_production:
     - docker system prune -af --volumes
     - echo "Checking disk space..."
     - df -h /
-#    - echo "Linking Database..."
-#    - cp /home/runner/stocks.db ./data/stocks.db
+    - echo "Linking Database..."
+    - cp /home/runner/stocks.db ./data/stocks.db
     - echo "Deploying to production..."
     - docker compose down || true
     - docker compose up -d --build
     - docker compose ps
+    - echo "Running on coms-4020-002.class.las.iastate.edu:8080"
   tags:
     - deployment
