@@ -1,0 +1,54 @@
+stages:
+  - test
+  - deploy
+
+build_images:
+  stage: test
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == "main"'
+  script:
+    - echo "Building Docker images..."
+    - docker compose build
+  tags:
+    - deployment
+    - ci
+
+deploy_production:
+  stage: deploy
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+  script:
+    - echo "Cleaning up Docker resources..."
+    - docker system prune -af --volumes
+    - echo "Checking disk space..."
+    - df -h /
+    - echo "Linking Database..."
+    - cp /home/runner/stocks.db ./data/stocks.db
+    - echo "Deploying to production..."
+    - docker compose down || true
+    - docker compose up -d --build
+    - docker compose ps
+    - |
+    # Call /api/health to check connection.
+      echo "Smoke check (web -> api)..."
+      i=0
+      passed=0
+      until [ "$i" -ge 30 ]; do
+        if docker compose exec -T fastapi python -c "import urllib.request; print(urllib.request.urlopen('http://web:8080/api/health', timeout=2).read().decode())"; then
+          passed=1
+          break
+        fi
+        i=$((i + 1))
+        sleep 1
+      done
+      if [ "$passed" -ne 1 ]; then
+        echo "Health check failed after 30s"
+        docker compose ps
+        exit 1
+      fi
+      # Yay
+    - echo "Running on coms-4020-002.class.las.iastate.edu:8080"
+  tags:
+    - deployment
+    - cd
