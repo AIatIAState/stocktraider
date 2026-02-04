@@ -1,8 +1,4 @@
-const FALLBACK_API = 'http://localhost:5000'
-
-export const API_BASE =
-  import.meta.env.VITE_API_BASE ||
-  (window.location.hostname === 'localhost' ? FALLBACK_API : '')
+export const API_BASE = import.meta.env.VITE_API_BASE ?? ''
 
 async function requestJson<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
