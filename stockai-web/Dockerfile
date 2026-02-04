@@ -1,27 +1,22 @@
-# The official Node.js image
-FROM node:24-alpine
+###############################
+# Build frontend
+###############################
 
-# Set the working directory
+# install node and npm stuff
+FROM node:24-alpine AS build
 WORKDIR /app
-
-# Copy package manager files
 COPY package.json package-lock.json ./
-
-# Install dependencies
-RUN npm install
-
-# Optional API base for build-time configuration
-ARG VITE_API_BASE
-ENV VITE_API_BASE=$VITE_API_BASE
-
-# Copy the rest of the source code
+RUN npm ci
 COPY . .
-
-# Build the Vite project
 RUN npm run build
 
-# Expose the port
-EXPOSE 8080
+###############################
+# Serve frontend with nginx
+###############################
 
-# Serve the built app
-CMD ["npm", "run", "preview", "--", "--host", "0.0.0.0", "--port", "8080"]
+FROM nginx:1.27-alpine
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /app/dist /usr/share/nginx/html
+# reverse proxy to the FastAPI backend, which is running on port 5000
+EXPOSE 8080
+CMD ["nginx", "-g", "daemon off;"]

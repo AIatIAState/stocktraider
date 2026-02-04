@@ -24,6 +24,7 @@ USER appuser
 
 # Expose the port the app runs on
 EXPOSE 5000
+# Note: nginzx in the frontend container will reverse proxy /api requests to this port
 
 # Command to run the application
 CMD ["uvicorn", "main:app", "--host=0.0.0.0", "--port", "5000"]
