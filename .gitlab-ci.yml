@@ -10,6 +10,7 @@ build_images:
   script:
     - echo "Building Docker images..."
     - docker compose build
+    - echo "Test build complete."
   tags:
     - deployment
     - ci
