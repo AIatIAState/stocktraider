@@ -1,10 +1,8 @@
 services:
-  vite:
+  web:
     build:
       context: ./stockai-web
       dockerfile: Dockerfile
-      args:
-        VITE_API_BASE: http://localhost:5000
     ports:
       - "8080:8080"
     depends_on:
@@ -13,8 +11,6 @@ services:
     build:
       context: ./fastapi
       dockerfile: Dockerfile
-    ports:
-      - "5000:5000"
     environment:
       - DB_PATH=/data/stocks.db
     volumes:

@@ -14,7 +14,7 @@ RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
 
 # Copy the requirements file and install dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install -r requirements.txt
 
 # Copy the rest of the application code
 COPY . .
@@ -24,6 +24,7 @@ USER appuser
 
 # Expose the port the app runs on
 EXPOSE 5000
+# Note: nginzx in the frontend container will reverse proxy /api requests to this port
 
 # Command to run the application
 CMD ["uvicorn", "main:app", "--host=0.0.0.0", "--port", "5000"]
