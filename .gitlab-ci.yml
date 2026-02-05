@@ -27,8 +27,8 @@ deploy_production:
     - echo "Linking Database..."
     - cp /home/runner/stocks.db ./data/stocks.db
     - echo "Deploying to production..."
-    - docker compose down || true
-    - docker compose up -d --build
+    - docker compose down --remove-orphans || true
+    - docker compose up -d --build --remove-orphans
     - docker compose ps
     - |
       echo "Smoke check (web -> api)..."
