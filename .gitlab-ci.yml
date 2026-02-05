@@ -11,7 +11,6 @@ build_images:
     - echo "Building Docker images..."
     - docker compose build
     - echo "Test build complete."
-    - echo "test"
   tags:
     - deployment
     - ci
