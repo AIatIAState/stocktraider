@@ -26,16 +26,18 @@ deploy_production:
     - df -h /
     - echo "Linking Database..."
     - cp /home/runner/stocks.db ./data/stocks.db
+    - chmod a+r ./data/stocks.db
+    - chmod a+rx ./data
     - echo "Deploying to production..."
     - docker compose down --remove-orphans || true
     - docker compose up -d --build --remove-orphans
     - docker compose ps
     - |
-      echo "Smoke check (web -> api)..."
+      echo "Smoke check (web -> api readiness)..."
       i=0
       passed=0
       until [ "$i" -ge 30 ]; do
-        if docker compose exec -T fastapi python -c "import urllib.request; print(urllib.request.urlopen('http://web:8080/api/health', timeout=2).read().decode())"; then
+        if docker compose exec -T fastapi python -c "import urllib.request; print(urllib.request.urlopen('http://web:8080/api/ready', timeout=2).read().decode())"; then
           passed=1
           break
         fi
@@ -43,8 +45,10 @@ deploy_production:
         sleep 1
       done
       if [ "$passed" -ne 1 ]; then
-        echo "Health check failed after 30s"
+        echo "Readiness check failed after 30s"
         docker compose ps
+        docker compose logs --no-color --tail=200 fastapi
+        docker compose logs --no-color --tail=200 web
         exit 1
       fi
       # Yay
