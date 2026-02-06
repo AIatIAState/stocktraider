@@ -21,7 +21,7 @@ def get_forecast(symbol, timeframe, forecast_length=7):
         ORDER BY date {"ASC"}, time {"DESC"}
     """
     params: list[object] = [symbol, timeframe]
-    conn = get_connection()
+    conn = get_connection(readonly=True)
     try:
         rows = conn.execute(sql, params).fetchall()
     finally:

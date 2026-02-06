@@ -1,13 +1,16 @@
+import logging
+import sqlite3
 
-
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from Connector import get_connection
 from PatternRecognition import get_dtw_patterns
 from Forecasting import get_forecast
 
 app = FastAPI()
+LOGGER = logging.getLogger("uvicorn.error")
 
 MAX_LIMIT = 50000
 
@@ -20,16 +23,34 @@ app.add_middleware(
 )
 
 
+@app.exception_handler(sqlite3.Error)
+async def sqlite_error_handler(request: Request, exc: sqlite3.Error):
+    LOGGER.exception("SQLite error on %s %s", request.method, request.url.path)
+    return JSONResponse(status_code=500, content={"detail": f"Database error: {exc}"})
+
+
 
 @app.get("/api/health")
 def health():
     return {"status": "ok"}
 
 
+@app.get("/api/ready")
+def ready():
+    conn = get_connection(readonly=True)
+    try:
+        conn.execute("SELECT 1 FROM symbols LIMIT 1").fetchone()
+        conn.execute("SELECT 1 FROM bars LIMIT 1").fetchone()
+    finally:
+        conn.close()
+
+    return {"status": "ok"}
+
+
 @app.get("/api/symbols")
 def search_symbols(q: str = Query(..., min_length=1), limit: int = Query(25, ge=1, le=500)):
     query = q.strip().upper()
-    conn = get_connection()
+    conn = get_connection(readonly=True)
     try:
         rows = conn.execute(
             """
@@ -83,7 +104,7 @@ def get_bars(
     """
     params.append(limit)
 
-    conn = get_connection()
+    conn = get_connection(readonly=True)
     try:
         rows = conn.execute(sql, params).fetchall()
     finally:
