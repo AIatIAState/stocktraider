@@ -5,6 +5,7 @@ View our latest progress! (Yay CICD)
 
 Deployed app URL: `http://coms-4020-002.class.las.iastate.edu:8080`
 Health endpoint: `http://coms-4020-002.class.las.iastate.edu:8080/api/health`
+Readiness endpoint (checks DB): `http://coms-4020-002.class.las.iastate.edu:8080/api/ready`
 
 What: Although LLMs have many applications, using them for stock and crypto trading often relies on paid subscription platforms built on closed-source models (e.g., https://quant.drnamlabs.com/). In this work, we aim to evaluate and improve open-source LLMs for trading-related tasks. Our project has two phases: (1) building a historical trading dataset, and (2) integrating LLM techniques—such as fine-tuning and preference optimization—into a platform that can automatically suggest trading actions and summarize current market conditions.
 
@@ -81,9 +82,10 @@ In `.gitlab-ci.yml`, `deploy_production`:
 - Runs only on `main`
 - Uses the GitLab runner tagged `deployment`
 - Deploys with `docker compose up -d --build`
-- Performs a smoke check by requesting `http://web:8080/api/health` from inside the Docker network
+- Performs a smoke check by requesting `http://web:8080/api/ready` from inside the Docker network
 
 If successful, it is deployed:
 Deployed app URL: `http://coms-4020-002.class.las.iastate.edu:8080`
 Health endpoint: `http://coms-4020-002.class.las.iastate.edu:8080/api/health`
+Readiness endpoint (checks DB): `http://coms-4020-002.class.las.iastate.edu:8080/api/ready`
 
