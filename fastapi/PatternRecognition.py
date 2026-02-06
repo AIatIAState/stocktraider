@@ -22,7 +22,7 @@ def get_dtw_patterns(symbol, timeframe, trend_segment_length=7, min_similarity_s
     """
 
     params: list[object] = [symbol, timeframe]
-    conn = get_connection()
+    conn = get_connection(readonly=True)
     try:
         rows = conn.execute(sql, params).fetchall()
     finally:
