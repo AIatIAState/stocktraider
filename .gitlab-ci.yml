@@ -28,6 +28,10 @@ deploy_production:
     - cp /home/runner/stocks.db ./data/stocks.db
     - chmod a+r ./data/stocks.db
     - chmod a+rx ./data
+    - echo "Preparing SQLite WAL sidecar files..."
+    - rm -f ./data/stocks.db-wal ./data/stocks.db-shm || true
+    - touch ./data/stocks.db-wal ./data/stocks.db-shm
+    - chmod a+rw ./data/stocks.db-wal ./data/stocks.db-shm
     - echo "Deploying to production..."
     - docker compose down --remove-orphans || true
     - docker compose up -d --build --remove-orphans
