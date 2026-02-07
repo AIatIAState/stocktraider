@@ -15,7 +15,6 @@ export default function Dashboard() {
       <CssBaseline enableColorScheme />
       <AppNavbar />
       <Box sx={{ display: 'flex' }}>
-         <SideMenu />
         <Box
           component="main"
           sx={(theme) => ({
