@@ -1,5 +1,6 @@
 import logging
 import sqlite3
+from datetime import timedelta
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -8,7 +9,26 @@ from fastapi.responses import JSONResponse
 from Connector import get_connection
 from PatternRecognition import get_dtw_patterns
 from Forecasting import get_forecast
-
+from fetch_prices import update_daily_bars
+from WeeklyMovers import (
+    MOVERS_CACHE_LOCK,
+    date_int_to_date,
+    date_to_int,
+    fetch_weekly_movers,
+    fetch_weekly_series,
+    get_cached_movers,
+    set_cached_movers,
+)
+from admin_jobs import (
+    AdminUpdateRequest,
+    JOBS,
+    JOB_LOCK,
+    find_running_job,
+    parse_iso_date,
+    prune_jobs,
+    serialize_job,
+    start_update_job,
+)
 app = FastAPI()
 LOGGER = logging.getLogger("uvicorn.error")
 
@@ -29,7 +49,6 @@ async def sqlite_error_handler(request: Request, exc: sqlite3.Error):
     return JSONResponse(status_code=500, content={"detail": f"Database error: {exc}"})
 
 
-
 @app.get("/api/health")
 def health():
     return {"status": "ok"}
@@ -45,6 +64,66 @@ def ready():
         conn.close()
 
     return {"status": "ok"}
+
+
+@app.post("/api/admin/update")
+def admin_update(request: AdminUpdateRequest, wait: bool = Query(False)):
+    start_date = parse_iso_date(request.start, "start")
+    end_date = parse_iso_date(request.end, "end")
+    if end_date < start_date:
+        raise HTTPException(status_code=400, detail="end must be >= start")
+
+    if wait:
+        summary = update_daily_bars(
+            start_date=start_date,
+            end_date=end_date,
+            symbols=request.symbols,
+            limit=request.limit,
+        )
+        return {"summary": summary}
+
+    with JOB_LOCK:
+        prune_jobs()
+        running_job = find_running_job()
+        if running_job:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Update job already running (job_id={running_job['id']})",
+            )
+        job = start_update_job(
+            start_date=start_date,
+            end_date=end_date,
+            symbols=request.symbols,
+            limit=request.limit,
+        )
+        JOBS[job["id"]] = job
+
+    return JSONResponse(status_code=202, content=serialize_job(job))
+
+
+@app.get("/api/admin/update/jobs")
+def admin_update_jobs(status: str | None = Query(None)):
+    with JOB_LOCK:
+        prune_jobs()
+        jobs = list(JOBS.values())
+
+    if status:
+        status_value = status.strip().lower()
+        if status_value not in {"running", "completed", "failed"}:
+            raise HTTPException(status_code=400, detail="status must be running, completed, or failed")
+        jobs = [job for job in jobs if job.get("status") == status_value]
+
+    jobs.sort(key=lambda job: job.get("created_at_ts", 0), reverse=True)
+    return {"jobs": [serialize_job(job) for job in jobs]}
+
+
+@app.get("/api/admin/update/{job_id}")
+def admin_update_status(job_id: str):
+    with JOB_LOCK:
+        job = JOBS.get(job_id)
+        if not job:
+            raise HTTPException(status_code=404, detail="Job not found")
+        return serialize_job(job)
 
 
 @app.get("/api/symbols")
@@ -66,6 +145,118 @@ def search_symbols(q: str = Query(..., min_length=1), limit: int = Query(25, ge=
         conn.close()
 
     return {"results": [dict(row) for row in rows]}
+
+
+@app.get("/api/weekly-movers")
+def weekly_movers(
+    direction: str | None = Query(None, description="top or bottom"),
+    limit: int = Query(3, ge=1, le=25),
+):
+    conn = get_connection(readonly=True)
+    try:
+        row = conn.execute(
+            "SELECT MAX(date) AS max_date FROM bars WHERE timeframe = 'daily'"
+        ).fetchone()
+        if not row or row["max_date"] is None:
+            raise HTTPException(status_code=404, detail="No daily bars available")
+
+        end_int = row["max_date"]
+        end_date = date_int_to_date(end_int)
+
+        if direction:
+            direction_value = direction.strip().lower()
+            if direction_value not in ("top", "bottom"):
+                raise HTTPException(status_code=400, detail="direction must be top or bottom")
+            with MOVERS_CACHE_LOCK:
+                cached = get_cached_movers(direction_value, end_int)
+            if cached:
+                return {
+                    "start": cached["start"],
+                    "end": cached["end"],
+                    "direction": direction_value,
+                    "movers": cached["movers"],
+                }
+
+            range_start = end_date - timedelta(days=6)
+            range_start_int = date_to_int(range_start)
+            row = conn.execute(
+                """
+                SELECT MIN(date) AS min_date
+                FROM bars
+                WHERE timeframe = 'daily'
+                  AND date BETWEEN ? AND ?
+                """,
+                (range_start_int, end_int),
+            ).fetchone()
+            start_int = row["min_date"] or range_start_int
+            start_date = date_int_to_date(start_int)
+
+            sql_direction = "DESC" if direction_value == "top" else "ASC"
+            movers = fetch_weekly_movers(conn, start_int, end_int, sql_direction, limit)
+            symbols = [mover["symbol"] for mover in movers]
+            series_map = fetch_weekly_series(conn, symbols, start_int, end_int)
+            for mover in movers:
+                mover["series"] = series_map.get(mover["symbol"], [])
+            with MOVERS_CACHE_LOCK:
+                set_cached_movers(
+                    direction_value,
+                    end_int,
+                    start_date.isoformat(),
+                    end_date.isoformat(),
+                    movers,
+                )
+            return {
+                "start": start_date.isoformat(),
+                "end": end_date.isoformat(),
+                "direction": direction_value,
+                "movers": movers,
+            }
+
+        with MOVERS_CACHE_LOCK:
+            cached_top = get_cached_movers("top", end_int)
+            cached_bottom = get_cached_movers("bottom", end_int)
+        if cached_top and cached_bottom:
+            return {
+                "start": cached_top["start"],
+                "end": cached_top["end"],
+                "top": cached_top["movers"],
+                "bottom": cached_bottom["movers"],
+            }
+
+        range_start = end_date - timedelta(days=6)
+        range_start_int = date_to_int(range_start)
+        row = conn.execute(
+            """
+            SELECT MIN(date) AS min_date
+            FROM bars
+            WHERE timeframe = 'daily'
+              AND date BETWEEN ? AND ?
+            """,
+            (range_start_int, end_int),
+        ).fetchone()
+        start_int = row["min_date"] or range_start_int
+        start_date = date_int_to_date(start_int)
+
+        top = fetch_weekly_movers(conn, start_int, end_int, "DESC", limit)
+        bottom = fetch_weekly_movers(conn, start_int, end_int, "ASC", limit)
+        top_series = fetch_weekly_series(conn, [m["symbol"] for m in top], start_int, end_int)
+        bottom_series = fetch_weekly_series(conn, [m["symbol"] for m in bottom], start_int, end_int)
+        for mover in top:
+            mover["series"] = top_series.get(mover["symbol"], [])
+        for mover in bottom:
+            mover["series"] = bottom_series.get(mover["symbol"], [])
+        with MOVERS_CACHE_LOCK:
+            set_cached_movers("top", end_int, start_date.isoformat(), end_date.isoformat(), top)
+            set_cached_movers("bottom", end_int, start_date.isoformat(), end_date.isoformat(), bottom)
+
+        return {
+            "start": start_date.isoformat(),
+            "end": end_date.isoformat(),
+            "top": top,
+            "bottom": bottom,
+        }
+    finally:
+        conn.close()
 
 
 @app.get("/api/bars")

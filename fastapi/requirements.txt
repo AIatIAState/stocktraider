@@ -4,3 +4,4 @@ dtaidistance==2.3.13
 u8darts[notorch]
 lightgbm
 scikit-learn
+yfinance

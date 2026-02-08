@@ -26,7 +26,8 @@ deploy_production:
     - df -h /
     - echo "Linking Database..."
     - cp /home/runner/stocks.db ./data/stocks.db
-    - chmod a+r ./data/stocks.db
+    - chmod a+rw ./data/stocks.db
+    - chown 1000:1000 ./data/stocks.db || true
     - chmod a+rx ./data
     - echo "Preparing SQLite WAL sidecar files..."
     - rm -f ./data/stocks.db-wal ./data/stocks.db-shm || true
@@ -35,6 +36,8 @@ deploy_production:
     - echo "Deploying to production..."
     - docker compose down --remove-orphans || true
     - docker compose up -d --build --remove-orphans
+    - echo "Ensuring SQLite indexes..."
+    - docker compose exec -T fastapi python -m db_maintenance --ensure-indexes
     - docker compose ps
     - |
       echo "Smoke check (web -> api readiness)..."
