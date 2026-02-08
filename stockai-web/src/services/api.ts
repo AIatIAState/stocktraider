@@ -38,6 +38,27 @@ export function fetchBars(params: {
   return requestJson<{ results: Bar[] }>(`/api/bars?${qs.toString()}`)
 }
 
+export function runAdminUpdate(params: {
+  start: string
+  end: string
+  symbols?: string[]
+  limit?: number
+}) {
+  return requestJson<UpdateJob>('/api/admin/update', {
+    method: 'POST',
+    body: JSON.stringify(params),
+  })
+}
+
+export function fetchAdminUpdateStatus(jobId: string) {
+  return requestJson<UpdateJob>(`/api/admin/update/${jobId}`)
+}
+
+export function fetchAdminUpdateJobs(status?: 'running' | 'completed' | 'failed') {
+  const qs = status ? `?status=${encodeURIComponent(status)}` : ''
+  return requestJson<{ jobs: UpdateJob[] }>(`/api/admin/update/jobs${qs}`)
+}
+
 export type SymbolInfo = {
   symbol: string
   exchange: string | null
@@ -57,4 +78,23 @@ export type Bar = {
   volume: number | null
   openint: number | null
   timeframe: string
+}
+
+export type UpdateSummary = {
+  symbols: number
+  yf_symbols: number
+  rows_fetched: number
+  rows_inserted: number
+}
+
+export type UpdateJob = {
+  id: string
+  status: 'running' | 'completed' | 'failed'
+  created_at: string
+  started_at: string
+  finished_at: string | null
+  summary: UpdateSummary | null
+  error: string | null
+  start: string
+  end: string
 }

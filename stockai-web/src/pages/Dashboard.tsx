@@ -1,20 +1,13 @@
-import { alpha } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
-import Box from '@mui/material/Box';
-import Stack from '@mui/material/Stack';
-import AppNavbar from '../components/AppNavbar';
-import Header from '../components/Header';
-import MainGrid from '../components/MainGrid';
-// import SideMenu from '../components/SideMenu';
 import Footer from '../components/Footer';
-import SideMenu from "../components/SideMenu.tsx";
+import AppAppBar from '../components/AppAppBar.tsx';
 
 export default function Dashboard() {
   return (
       <>
       <CssBaseline enableColorScheme />
-      <AppNavbar />
-      <Box sx={{ display: 'flex' }}>
+      <AppAppBar />
+      {/* <Box sx={{ display: 'flex' }}>
         <Box
           component="main"
           sx={(theme) => ({
@@ -38,7 +31,7 @@ export default function Dashboard() {
             <MainGrid />
           </Stack>
         </Box>
-      </Box>
+      </Box> */}
       <Footer />
     </>
   );
