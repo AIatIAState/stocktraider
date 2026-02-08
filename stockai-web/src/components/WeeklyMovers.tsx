@@ -17,29 +17,34 @@ import {
   TableHead,
   TableRow,
   Typography,
-} from '@mui/material'
-import { useEffect, useMemo, useState } from 'react'
-import { fetchWeeklyMovers, type WeeklyMover } from '../services/api'
-import { GradientCircularProgress } from './GradientCircularProgress'
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
-import StatCard from './charts/StatCard'
+} from "@mui/material";
+import { useEffect, useMemo, useState } from "react";
+import { fetchWeeklyMovers, type WeeklyMover } from "../services/api";
+import { GradientCircularProgress } from "./GradientCircularProgress";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import StatCard from "./charts/StatCard";
 
 function formatPct(value: number) {
-  const sign = value > 0 ? '+' : ''
-  return `${sign}${value.toFixed(2)}%`
+  const sign = value > 0 ? "+" : "";
+  return `${sign}${value.toFixed(2)}%`;
 }
 
 function formatPrice(value: number) {
-  return value.toFixed(2)
+  return value.toFixed(2);
 }
 
-function MoverCell(props: { mover?: WeeklyMover; tone: 'success' | 'error' }) {
-  const { mover, tone } = props
+function MoverCell(props: { mover?: WeeklyMover; tone: "success" | "error" }) {
+  const { mover, tone } = props;
   if (!mover) {
-    return <Typography variant="body2" color="text.secondary">No data</Typography>
+    return (
+      <Typography variant="body2" color="text.secondary">
+        No data
+      </Typography>
+    );
   }
-  const trend = mover.pct_change > 0 ? 'up' : mover.pct_change < 0 ? 'down' : 'neutral'
-  const series = mover.series && mover.series.length > 1 ? mover.series : null
+  const trend =
+    mover.pct_change > 0 ? "up" : mover.pct_change < 0 ? "down" : "neutral";
+  const series = mover.series && mover.series.length > 1 ? mover.series : null;
   return (
     <Stack spacing={1}>
       <Typography variant="subtitle1">{mover.symbol}</Typography>
@@ -55,7 +60,7 @@ function MoverCell(props: { mover?: WeeklyMover; tone: 'success' | 'error' }) {
         <>
           <Typography
             variant="subtitle2"
-            color={tone === 'success' ? 'success.main' : 'error.main'}
+            color={tone === "success" ? "success.main" : "error.main"}
           >
             {formatPct(mover.pct_change)}
           </Typography>
@@ -65,87 +70,95 @@ function MoverCell(props: { mover?: WeeklyMover; tone: 'success' | 'error' }) {
         </>
       )}
     </Stack>
-  )
+  );
 }
 
 export default function WeeklyMovers() {
-  const [topMovers, setTopMovers] = useState<WeeklyMover[]>([])
-  const [bottomMovers, setBottomMovers] = useState<WeeklyMover[]>([])
-  const [range, setRange] = useState<{ start: string; end: string } | null>(null)
-  const [topError, setTopError] = useState<string | null>(null)
-  const [bottomError, setBottomError] = useState<string | null>(null)
-  const [isTopLoading, setIsTopLoading] = useState(true)
-  const [isBottomLoading, setIsBottomLoading] = useState(true)
+  const [topMovers, setTopMovers] = useState<WeeklyMover[]>([]);
+  const [bottomMovers, setBottomMovers] = useState<WeeklyMover[]>([]);
+  const [range, setRange] = useState<{ start: string; end: string } | null>(
+    null,
+  );
+  const [topError, setTopError] = useState<string | null>(null);
+  const [bottomError, setBottomError] = useState<string | null>(null);
+  const [isTopLoading, setIsTopLoading] = useState(true);
+  const [isBottomLoading, setIsBottomLoading] = useState(true);
 
   useEffect(() => {
-    let active = true
-    setIsTopLoading(true)
-    setIsBottomLoading(true)
-    fetchWeeklyMovers('top')
+    let active = true;
+    setIsTopLoading(true);
+    setIsBottomLoading(true);
+    fetchWeeklyMovers("top")
       .then((response) => {
         if (!active) {
-          return
+          return;
         }
-        setTopMovers(response.movers)
-        setRange({ start: response.start, end: response.end })
-        setTopError(null)
+        setTopMovers(response.movers);
+        setRange({ start: response.start, end: response.end });
+        setTopError(null);
       })
       .catch((err) => {
         if (!active) {
-          return
+          return;
         }
-        const raw = err instanceof Error ? err.message : 'Failed to load top movers.'
-        const message = raw.includes('<html') || raw.includes('Gateway Time-out')
-          ? 'Top movers request timed out. Try again in a moment.'
-          : raw
-        setTopError(message)
+        const raw =
+          err instanceof Error ? err.message : "Failed to load top movers.";
+        const message =
+          raw.includes("<html") || raw.includes("Gateway Time-out")
+            ? "Top movers request timed out. Try again in a moment."
+            : raw;
+        setTopError(message);
       })
       .finally(() => {
         if (!active) {
-          return
+          return;
         }
-        setIsTopLoading(false)
-      })
+        setIsTopLoading(false);
+      });
 
-    fetchWeeklyMovers('bottom')
+    fetchWeeklyMovers("bottom")
       .then((response) => {
         if (!active) {
-          return
+          return;
         }
-        setBottomMovers(response.movers)
-        setRange((current) => current ?? { start: response.start, end: response.end })
-        setBottomError(null)
+        setBottomMovers(response.movers);
+        setRange(
+          (current) => current ?? { start: response.start, end: response.end },
+        );
+        setBottomError(null);
       })
       .catch((err) => {
         if (!active) {
-          return
+          return;
         }
-        const raw = err instanceof Error ? err.message : 'Failed to load bottom movers.'
-        const message = raw.includes('<html') || raw.includes('Gateway Time-out')
-          ? 'Bottom movers request timed out. Try again in a moment.'
-          : raw
-        setBottomError(message)
+        const raw =
+          err instanceof Error ? err.message : "Failed to load bottom movers.";
+        const message =
+          raw.includes("<html") || raw.includes("Gateway Time-out")
+            ? "Bottom movers request timed out. Try again in a moment."
+            : raw;
+        setBottomError(message);
       })
       .finally(() => {
         if (!active) {
-          return
+          return;
         }
-        setIsBottomLoading(false)
-      })
+        setIsBottomLoading(false);
+      });
 
     return () => {
-      active = false
-    }
-  }, [])
+      active = false;
+    };
+  }, []);
 
   const heading = useMemo(() => {
     if (!range) {
-      return 'Weekly movers'
+      return "Weekly movers";
     }
-    return `Weekly movers (${range.start} -> ${range.end})`
-  }, [range])
+    return `Weekly movers (${range.start} -> ${range.end})`;
+  }, [range]);
 
-  const maxRows = Math.max(topMovers.length, bottomMovers.length)
+  const maxRows = Math.max(topMovers.length, bottomMovers.length);
 
   return (
     <Container maxWidth="lg" sx={{ py: { xs: 4, md: 6 } }}>
@@ -164,12 +177,14 @@ export default function WeeklyMovers() {
             <Stack spacing={1.5}>
               <Typography variant="h4">Weekly Movers</Typography>
               {topError ? <Alert severity="error">{topError}</Alert> : null}
-              {bottomError ? <Alert severity="error">{bottomError}</Alert> : null}
+              {bottomError ? (
+                <Alert severity="error">{bottomError}</Alert>
+              ) : null}
             </Stack>
           </CardContent>
         </Card>
       ) : (
-        <Accordion style={{ padding: '16px' }}>
+        <Accordion style={{ padding: "16px" }}>
           <AccordionSummary expandIcon={<ExpandMoreIcon />}>
             <Stack direction="row" alignItems="center" spacing={2}>
               <Typography variant="h4">Weekly Movers</Typography>
@@ -184,11 +199,11 @@ export default function WeeklyMovers() {
                 <TableRow>
                   <Box
                     sx={{
-                      display: 'grid',
-                      gridTemplateColumns: '2fr 2fr',
+                      display: "grid",
+                      gridTemplateColumns: "2fr 2fr",
                       gap: 2,
                     }}
-                    style={{ paddingTop: '16px' }}
+                    style={{ paddingTop: "16px" }}
                     alignItems="end"
                   >
                     <TableCell>
@@ -201,31 +216,33 @@ export default function WeeklyMovers() {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {Array.from({ length: Math.max(maxRows, 3) }).map((_, index) => (
-                  <TableRow key={`movers-${index}`}>
-                    <Box
-                      sx={{
-                        display: 'grid',
-                        gridTemplateColumns: '2fr 2fr',
-                        gap: 2,
-                      }}
-                      style={{ paddingTop: '12px', paddingBottom: '12px' }}
-                      alignItems="center"
-                    >
-                      <TableCell>
-                        <MoverCell mover={topMovers[index]} tone="success" />
-                      </TableCell>
-                      <TableCell>
-                        <MoverCell mover={bottomMovers[index]} tone="error" />
-                      </TableCell>
-                    </Box>
-                  </TableRow>
-                ))}
+                {Array.from({ length: Math.max(maxRows, 3) }).map(
+                  (_, index) => (
+                    <TableRow key={`movers-${index}`}>
+                      <Box
+                        sx={{
+                          display: "grid",
+                          gridTemplateColumns: "2fr 2fr",
+                          gap: 2,
+                        }}
+                        style={{ paddingTop: "12px", paddingBottom: "12px" }}
+                        alignItems="center"
+                      >
+                        <TableCell>
+                          <MoverCell mover={topMovers[index]} tone="success" />
+                        </TableCell>
+                        <TableCell>
+                          <MoverCell mover={bottomMovers[index]} tone="error" />
+                        </TableCell>
+                      </Box>
+                    </TableRow>
+                  ),
+                )}
               </TableBody>
             </Table>
           </TableContainer>
         </Accordion>
       )}
     </Container>
-  )
+  );
 }

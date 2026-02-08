@@ -1,7 +1,7 @@
-import AppAppBar from '../components/AppAppBar'
-import AppTheme from '../themes/AppTheme'
-import Footer from '../components/Footer'
-import WeeklyMovers from '../components/WeeklyMovers'
+import AppAppBar from "../components/AppAppBar";
+import AppTheme from "../themes/AppTheme";
+import Footer from "../components/Footer";
+import WeeklyMovers from "../components/WeeklyMovers";
 
 export default function Dashboard(props: { disableCustomTheme?: boolean }) {
   return (
@@ -10,5 +10,5 @@ export default function Dashboard(props: { disableCustomTheme?: boolean }) {
       <WeeklyMovers />
       <Footer />
     </AppTheme>
-  )
+  );
 }
