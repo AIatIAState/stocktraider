@@ -38,6 +38,11 @@ export function fetchBars(params: {
   return requestJson<{ results: Bar[] }>(`/api/bars?${qs.toString()}`)
 }
 
+export function fetchWeeklyMovers(direction: 'top' | 'bottom') {
+  const qs = new URLSearchParams({ direction })
+  return requestJson<WeeklyMoversBatch>(`/api/weekly-movers?${qs.toString()}`)
+}
+
 export function runAdminUpdate(params: {
   start: string
   end: string
@@ -97,4 +102,19 @@ export type UpdateJob = {
   error: string | null
   start: string
   end: string
+}
+
+export type WeeklyMover = {
+  symbol: string
+  first_close: number
+  last_close: number
+  pct_change: number
+  series?: number[]
+}
+
+export type WeeklyMoversBatch = {
+  start: string
+  end: string
+  direction: 'top' | 'bottom'
+  movers: WeeklyMover[]
 }
