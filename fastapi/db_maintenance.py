@@ -9,6 +9,7 @@ DB_PATH = Path(os.getenv("DB_PATH", Path(__file__).resolve().parents[1] / "data"
 def ensure_indexes() -> None:
     conn = sqlite3.connect(DB_PATH)
     try:
+        # Index supports fast weekly movers queries by date and symbol.
         conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_bars_timeframe_date_symbol ON bars (timeframe, date, symbol)"
         )

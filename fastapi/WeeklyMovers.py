@@ -5,6 +5,7 @@ from datetime import date
 from fastapi import HTTPException
 
 MOVERS_CACHE_TTL_SECONDS = 10 * 60
+# In-memory cache to keep weekly movers fast between requests.
 MOVERS_CACHE_LOCK = threading.Lock()
 MOVERS_CACHE: dict[str, dict] = {
     "top": {"timestamp": 0.0, "end_int": None, "start": None, "end": None, "movers": None},
@@ -48,6 +49,7 @@ def date_to_int(value: date) -> int:
 def fetch_weekly_movers(conn, start_int: int, end_int: int, direction: str, limit: int) -> list[dict]:
     if direction not in ("ASC", "DESC"):
         raise ValueError("direction must be ASC or DESC")
+    # Use the start/end trading days to compute percent move for the week.
     sql = f"""
         WITH start_rows AS (
             SELECT symbol, close AS first_close

@@ -180,6 +180,7 @@ def update_daily_bars(
 
             total_rows += len(batch_rows)
             changes_before = conn.total_changes
+            # Commit per chunk to keep write locks short.
             with conn:
                 conn.executemany(
                     """

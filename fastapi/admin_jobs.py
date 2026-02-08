@@ -12,6 +12,7 @@ from fetch_prices import update_daily_bars
 LOGGER = logging.getLogger("uvicorn.error")
 
 JOB_RETENTION_SECONDS = 24 * 60 * 60
+# In-memory job tracking (cleared on app restart).
 JOB_LOCK = threading.Lock()
 JOBS: dict[str, dict] = {}
 
@@ -92,6 +93,7 @@ def start_update_job(*, start_date: date, end_date: date, symbols: list[str] | N
                 job["error"] = str(exc)
                 job["finished_at"] = finished_at
 
+    # Run the update in a background thread to avoid blocking the request thread.
     thread = threading.Thread(target=_run, daemon=True)
     thread.start()
     return job
