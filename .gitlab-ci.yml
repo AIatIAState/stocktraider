@@ -44,7 +44,7 @@ deploy_production:
       i=0
       passed=0
       until [ "$i" -ge 30 ]; do
-        if docker compose exec -T fastapi python -c "import urllib.request; print(urllib.request.urlopen('http://web:8080/api/ready', timeout=2).read().decode())"; then
+        if docker compose exec -T fastapi python -c "import urllib.request; print(urllib.request.urlopen('http://web:8080/api/ready', timeout=10).read().decode())"; then
           passed=1
           break
         fi
