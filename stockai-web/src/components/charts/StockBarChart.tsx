@@ -34,7 +34,7 @@ export default function StockBarChart(props: StockBarChartProps) {
     })
     const symbol = props.bars[0].symbol
     const heading = symbol + " Volume"
-    const percentage = ((props.bars[props.bars.length - 1].volume! - props.bars[props.bars.length - 2].volume!) / props.bars[props.bars.length - 2].volume! * 100)
+    const percentage = ((props.bars[props.bars.length - 1].volume! - props.bars[0].volume!) / props.bars[0].volume! * 100)
     const colorPalette = [
         theme.palette.primary.light,
         theme.palette.primary.main,
