@@ -7,7 +7,7 @@ from darts.models import ARIMA, \
 from darts.utils.utils import SeasonalityMode
 from matplotlib import pyplot as plt
 
-from Connector import get_connection
+from connector import get_connection
 import warnings
 from sklearn.exceptions import DataConversionWarning
 warnings.filterwarnings('ignore', category=UserWarning, module='sklearn')

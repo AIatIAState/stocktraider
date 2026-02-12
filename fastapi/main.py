@@ -1,3 +1,4 @@
+import datetime
 import logging
 import sqlite3
 from datetime import timedelta
@@ -6,9 +7,10 @@ from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from Connector import get_connection
-from PatternRecognition import get_dtw_patterns
-from Forecasting import get_forecast
+from connector import get_connection
+from naive_nn import NaiveNN
+from pattern_recognition import get_dtw_patterns
+from forecasting import get_forecast
 from fetch_prices import update_daily_bars
 from WeeklyMovers import (
     MOVERS_CACHE_LOCK,
@@ -318,3 +320,9 @@ def get_forecasts(symbol: str = Query(..., min_length=1),
     if forecast_length is None:
         forecast_length = 7
     return get_forecast(symbol, timeframe, forecast_length)
+
+@app.get("/api/getMarketConditions")
+def get_market_conditions(symbol: str = Query(..., min_length=1)):
+    naive_nn = NaiveNN("", load_dir="model-v0")
+    market_conditions, buy = naive_nn.predict(symbol, datetime.datetime.today().date())
+    return {"market_conditions": market_conditions, "market_decision": buy}

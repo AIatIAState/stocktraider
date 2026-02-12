@@ -7,7 +7,7 @@ from typing import Iterable
 import pandas as pd
 import yfinance as yf
 
-from Connector import get_connection
+from connector import get_connection
 
 LOGGER = logging.getLogger("uvicorn.error")
 

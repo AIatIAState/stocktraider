@@ -1,7 +1,7 @@
 from dtaidistance import dtw
 import datetime
 import numpy as np
-from Connector import get_connection
+from connector import get_connection
 
 
 def normalize(series):
