@@ -62,7 +62,7 @@ export default function StockScatterChart(props: StockScatterChartProps) {
     const symbol = props.symbol
   const heading = props.title ? props.title : symbol + " Price"
     const desc = props.desc ? props.desc : null
-    const percentage = ((props.bars[props.bars.length - 1].open! - props.bars[props.bars.length - 2].open!) / props.bars[props.bars.length - 2].open! * 100)
+    const percentage = ((props.bars[props.bars.length - 1].open! - props.bars[0].open!) / props.bars[0].open! * 100)
   const colorPalette = [
     theme.palette.primary.light,
     theme.palette.primary.main,
