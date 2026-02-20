@@ -14,3 +14,5 @@ requests
 lxml
 
 pytorch-lightning>=2.2.0
+apscheduler
+tzdata
