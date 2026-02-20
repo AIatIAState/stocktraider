@@ -14,13 +14,12 @@ class NaiveNN:
     """
     Class for collecting training data through the feature extractor, training a simple neural network, and predicting samples
     """
-    def __init__(self, tickers=[], load_dir=None):
+    def __init__(self, load_dir=None):
         """
         Initializer for Naive NN to initialize the model architecture and ticker list for training
         :param tickers: list of strings containing tickers selected for training data
         :param load_dir: optional filepath for saved model pt and pkl files
         """
-        self.ticker = tickers
         self.scaler = None
         self.model = nn.Sequential(OrderedDict([
             ("dense1", nn.Linear(11, 64)),
@@ -39,7 +38,7 @@ class NaiveNN:
             self.scaler = joblib.load(load_dir + '/st_scaler.pkl')
 
 
-    def train(self, start_date, dataset_length, epochs):
+    def train(self, tickers, start_date, dataset_length, epochs, print_progress=False):
         """
         Collects training data with the MarketSpecs function and labels according to the basic exit strategy
         Trains the neural network on the resulting training data
@@ -99,9 +98,10 @@ class NaiveNN:
             if loss.item() < best_loss:
                 best_loss = loss.item()
                 torch.save(self.model.state_dict(), f"model_save_{timestamp}/model.pth")
-                print(f'Saved new best model at epoch {epoch + 1} with loss {best_loss:.4f}')
+                if print_progress:
+                    print(f'Saved new best model at epoch {epoch + 1} with loss {best_loss:.4f}')
 
-            if (epoch + 1) % 10 == 0:
+            if (epoch + 1) % 10 == 0 and print_progress:
                 print(f'Epoch [{epoch + 1}/{epochs}], Loss: {loss.item():.4f}')
 
         joblib.dump(self.scaler, f'model_save_{timestamp}/st_scaler.pkl')
@@ -198,6 +198,6 @@ if __name__ == "__main__":
         'MCD.US',     # McDonald's
         'DIS.US'      # Disney
     ]
-    naive_nn = NaiveNN(tickers)
-    naive_nn.train(date(2012, 1, 1), 3653, 100) #til start of 2022, 10 years of data, Recent 2 years for evaluation
-    print(naive_nn.predict_proba('MSFT.US', date(2024, 3, 1)))
+    naive_nn = NaiveNN()
+    naive_nn.train(tickers, date(2011, 1, 1), 3653, 100) #10 years of data, use preceeding 1 year for evaluation
+    print(naive_nn.predict_proba('MSFT.US', date(2021, 1, 1)))

@@ -33,34 +33,91 @@ def get_bars(symbol, days_before, end_date=datetime.date.today()):
         bars.append(Bar(row['open'], row['close'], row['volume'], row['date'], row['time']))
     return bars
 
-def get_label(symbol, starting_date, todays_price):
-    winning_price = todays_price * 1.02
-    losing_price = todays_price * .99
+def get_label(symbol, starting_date, todays_price, max_trading_days=15):
+    """
+    Improved labeling strategy with a time horizon cap and 3-class output.
+
+    Walks forward up to max_trading_days (~3 calendar weeks) one day at a time.
+    The first threshold hit within the window determines the label.
+    If neither threshold is hit, the sample is discarded (returns -1).
+
+    Labels
+    ──────
+    2  — Strong buy:  close rose ≥ 3% within the window          (high-conviction win)
+    1  — Weak buy:    close rose ≥ 1.5% but < 3% within window   (modest win)
+    0  — Loss:        close fell ≥ 1.5% within the window         (loss)
+   -1  — Discard:     neither threshold hit — ambiguous, skip
+
+    Why this is better than the original binary label
+    ──────────────────────────────────────────────────
+    • Time cap prevents a 5-month slow crawl from being treated the same
+      as a 2-day breakout — speed of the move is encoded implicitly.
+    • Symmetric thresholds (±1.5%) eliminate the drift bias that caused
+      the original labels to skew heavily toward the positive class.
+    • 3 classes let the model distinguish strong opportunities from weak
+      ones, rather than collapsing everything into buy / don't-buy.
+    • Discarding ambiguous samples keeps the training signal clean —
+      flat-moving stocks are noise, not signal.
+
+    Compatibility note
+    ──────────────────
+    The simulation exit strategy (general_exit_strategy in simulation.py)
+    still uses its own +2% / -1% thresholds for live trading decisions.
+    This label is only used during training to teach the model which
+    market conditions tend to precede good outcomes.
+    """
+
+    # Symmetric thresholds — eliminates drift bias toward label=1
+    strong_win_price = todays_price * 1.03    # +3%
+    weak_win_price   = todays_price * 1.015   # +1.5%
+    loss_price       = todays_price * 0.985   # -1.5%
+
+    # Fetch the next ~max_trading_days * 1.5 calendar days to account
+    # for weekends and public holidays without over-fetching
+    lookahead_days = max_trading_days * 2
+    end_date = starting_date + datetime.timedelta(days=lookahead_days)
 
     conn = get_connection(readonly=True)
-    where = "(symbol = ? AND timeframe = ? AND date >= ?) AND (close >= ? OR close <= ?)"
-    params: list[object] = [symbol, "daily", starting_date.strftime("%Y%m%d"), winning_price, losing_price]
-
-    sql = f"""
-        SELECT date, close, open, time, volume
+    sql = """
+        SELECT date, close
         FROM bars
-        WHERE {where}
+        WHERE symbol = ? AND timeframe = ? AND date > ? AND date <= ?
         ORDER BY date ASC
     """
+    params: list[object] = [
+        symbol,
+        "daily",
+        starting_date.strftime("%Y%m%d"),
+        end_date.strftime("%Y%m%d"),
+    ]
     try:
         rows = conn.execute(sql, params).fetchall()
     finally:
         conn.close()
-    rows = [dict(row) for row in rows]
-    if len(rows) == 0:
+
+    rows = [dict(r) for r in rows]
+    if not rows:
         return -1
 
-    if rows[0]['close'] >= winning_price:
-        return 1
-    elif rows[0]['close'] <= losing_price:
-        return 0
-    else :
-        return -1
+    # Walk forward day by day and stop at the first threshold hit
+    trading_days_seen = 0
+    for row in rows:
+        if trading_days_seen >= max_trading_days:
+            break
+
+        close = row['close']
+
+        if close >= strong_win_price:
+            return 2   # strong buy — hit +3% quickly
+        if close >= weak_win_price:
+            return 1   # weak buy  — hit +1.5% but not +3%
+        if close <= loss_price:
+            return 0   # loss      — fell 1.5% before rising
+
+        trading_days_seen += 1
+
+    # Neither threshold hit within the window — discard
+    return -1
 
 def get_market_specs(symbol, days, starting_date):
     bars = get_bars(symbol, days, starting_date)
@@ -69,9 +126,8 @@ def get_market_specs(symbol, days, starting_date):
         return -1
 
     todays_price = bars[-1].close
-    label = get_label(symbol, starting_date, todays_price)
+    label = get_label(symbol, starting_date, todays_price, max_trading_days=15)
     if label == -1:
-        print(f"Error creating label for {starting_date}")
         return -1
 
     return {
