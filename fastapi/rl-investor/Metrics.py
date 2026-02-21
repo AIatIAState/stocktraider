@@ -13,7 +13,7 @@ def compute_metrics(portfolio_values, risk_free_rate=.03, min_acceptable_retrun=
     cumulative_return = (portfolio_values[-1] / portfolio_values[0]) - 1.0
 
     excess_returns = daily_returns - daily_rf
-    sharpe_ratio = np.mean(excess_returns) / (np.std(excess_returns) + 1e-8) * np.sqrt(252)
+    sharpe_ratio = np.mean(excess_returns) / max(np.std(excess_returns), 1e-4) * np.sqrt(252)
 
     downside_returns = np.minimum(daily_returns - daily_mar, 0)
     downside_std = np.sqrt(np.mean(downside_returns ** 2) + 1e-8)

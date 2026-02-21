@@ -76,10 +76,16 @@ class PortfolioEnvironment:
         sells = np.zeros(self.num_stocks)
         buys = np.zeros(self.num_stocks)
 
+        # Convert portfolio weights to target share counts
+        target_shares_counts = np.array([
+            (action[i] * self.portfolio_value) / max(open_prices[i], 1e-8)
+            for i in range(self.num_stocks)
+        ])
+
         #Process sells first
         for i in range(self.num_stocks):
-            current_shares = self.shares[i]
-            target_shares = action[i]
+            current_shares = float(self.shares[i])
+            target_shares = float(target_shares_counts[i])
 
             if target_shares < current_shares:
                 # Find how many to sell, ensuring we don't go below the short sell limit
@@ -93,7 +99,7 @@ class PortfolioEnvironment:
 
         #Process buys
         for i in range(self.num_stocks):
-            target_shares = action[i]
+            target_shares = float(target_shares_counts[i])
 
             if target_shares > self.shares[i]:
 
