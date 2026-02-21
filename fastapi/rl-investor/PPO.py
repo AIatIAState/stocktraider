@@ -83,7 +83,9 @@ class ActorCritic(nn.Module):
         return log_prob, state_value.squeeze(-1), entropy
 
 class PPO:
-    def __init__(self, input_dim, num_tickers, lr=3e-4, gamma=.99, gae_lambda=.95, clip_epsilon=.2, epochs=20, batch_size=64, entropy_coef=.01, value_coef=.5):
+    def __init__(self, input_dim, num_tickers, device, lr=3e-4, gamma=.99, gae_lambda=.95, clip_epsilon=.2, epochs=20, batch_size=64, entropy_coef=.01, value_coef=.5):
+        self.device = device
+
         #Discount Factor
         self.gamma = gamma
 
@@ -105,7 +107,7 @@ class PPO:
         #Critic loss weight to use to balance critical loss relative to actor loss
         self.value_coef = value_coef
 
-        self.actor_critic = ActorCritic(input_dim, num_tickers)
+        self.actor_critic = ActorCritic(input_dim, num_tickers).to(self.device)
         self.optimizer = torch.optim.Adam(self.actor_critic.parameters(), lr=lr)
 
     def compute_gae(self, transitions, next_value):
@@ -162,12 +164,12 @@ class PPO:
             indices = torch.randperm(len(transitions))
 
             for start in range(0, len(transitions), self.batch_size):
-                batch_idx = indices[start:start + self.batch_size]
-                batch_states = states[batch_idx]
-                batch_actions = actions[batch_idx]
-                batch_old_log_probs = old_log_probs[batch_idx]
-                batch_advantages = advantages[batch_idx]
-                batch_returns = returns[batch_idx]
+                batch_idx = indices[start:start + self.batch_size].to(self.device)
+                batch_states = states[batch_idx].to(self.device)
+                batch_actions = actions[batch_idx].to(self.device)
+                batch_old_log_probs = old_log_probs[batch_idx].to(self.device)
+                batch_advantages = advantages[batch_idx].to(self.device)
+                batch_returns = returns[batch_idx].to(self.device)
 
                 #Re-evaluate the action log probabilities, state values, and entropy for the current policy
                 new_log_probs, state_values, entropy = self.actor_critic.evaluate(batch_states, batch_actions)

@@ -8,7 +8,7 @@ from ParellelSubStrategy import ParallelSubStrategy
 from PPO import PPO, Transition
 
 class RL_Investor:
-    def __init__(self, num_tickers, num_features=9, sequence_length=30, output_dim=64, num_heads=4, lambda_risk=.5, alpha=.5):
+    def __init__(self, num_tickers, num_features=9, sequence_length=30, output_dim=64, num_heads=4, lambda_risk=.5, alpha=.5, gpu=False):
         self.sequence_length = sequence_length
         self.num_tickers = num_tickers
         self.num_features = num_features
@@ -30,6 +30,13 @@ class RL_Investor:
                                                      sequence_length=sequence_length,
                                                      memory_length=50)
 
+        if gpu:
+            self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        else:
+            self.device = torch.device("cpu")
+
+        self.attention.to(self.device)
+
     def _prepare_inputs(self, data):
         # Create tensor
         tickers = sorted(data.keys())
@@ -49,7 +56,7 @@ class RL_Investor:
             )
             frames.append(df)
         tensor = np.stack(frames, axis=1)
-        return torch.tensor(tensor, dtype=torch.float32)
+        return torch.tensor(tensor, dtype=torch.float32).to(self.device)
 
     def _attach_time_features(self, data):
         num_days = data.shape[0]
@@ -58,7 +65,7 @@ class RL_Investor:
         tf_array = full_embedding.forward()
 
         #Trim time features to match the number of days in the input data and convert to tensor
-        tf = torch.tensor(tf_array, dtype=torch.float32)
+        tf = torch.tensor(tf_array, dtype=torch.float32).to(self.device)
 
         #Expand time features to match the number of tickers and concatenate with input data
         tf = tf.unsqueeze(1).expand(-1, data.shape[1], -1)
@@ -69,7 +76,7 @@ class RL_Investor:
 
         tickers = sorted(training_data.keys())
 
-        ppo = PPO(input_dim=self.output_dim, num_tickers=len(tickers), epochs=20)
+        ppo = PPO(input_dim=self.output_dim, num_tickers=len(tickers), device=self.device, epochs=20)
 
         #Rebuilt optimizer to include attention parameters in gradient updates
         all_params = list(ppo.actor_critic.parameters()) + list(self.attention.parameters())
@@ -97,7 +104,7 @@ class RL_Investor:
 
                 #Flatten tickers into feature dim for attention
                 batch_size, seq_len, num_tickers, feature_dim = x_window.shape
-                x_flat = x_window.reshape(batch_size, seq_len, num_tickers * feature_dim)
+                x_flat = x_window.reshape(batch_size, seq_len, num_tickers * feature_dim).to(self.device)
 
                 #Forward pass through attention
                 attended = self.attention(x_flat)
@@ -179,7 +186,7 @@ class RL_Investor:
             x_window = x[start: step+1].unsqueeze(0)
 
             batch_size, seq_len, num_tickers, feature_dim = x_window.shape
-            x_flat = x_window.reshape(batch_size, seq_len, num_tickers * feature_dim)
+            x_flat = x_window.reshape(batch_size, seq_len, num_tickers * feature_dim).to(self.device)
 
             attended = self.attention(x_flat)
 
