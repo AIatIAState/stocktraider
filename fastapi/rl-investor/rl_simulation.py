@@ -87,7 +87,7 @@ dow_tickers = [
     ]
 ]
 
-def simulate(rl_model):
+def simulate(rl_model, gpu=False):
 
     all_results = []
     all_metrics = []
@@ -100,7 +100,7 @@ def simulate(rl_model):
         training_djia_opens, training_djia_closes = get_djia(training_start_date, training_end_date)
 
         print(f"Training RL Agent: {training_start_date} to {training_end_date}")
-        model = rl_model(len(tickers))
+        model = rl_model(len(tickers), gpu=gpu)
         model.train(preprocessed_training_data, training_opens, training_djia_opens, training_djia_closes)
 
         print(f"Collecting Testing Data: {testing_start_date} to {testing_end_date}")
@@ -138,4 +138,4 @@ def simulate(rl_model):
 
     return all_results, all_metrics
 if __name__ == "__main__":
-    simulate(RL_Investor)
+    simulate(RL_Investor, True)

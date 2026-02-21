@@ -151,6 +151,9 @@ class PPO:
         actions = torch.stack([torch.tensor(t.action, dtype=torch.float32) for t in transitions])
         old_log_probs = torch.stack([torch.tensor(t.log_prob, dtype=torch.float32) for t in transitions])
 
+        advantages = advantages.to(self.device)
+        returns = returns.to(self.device)
+
         total_loss = 0.0
         total_actor = 0.0
         total_critic = 0.0
@@ -164,12 +167,12 @@ class PPO:
             indices = torch.randperm(len(transitions))
 
             for start in range(0, len(transitions), self.batch_size):
-                batch_idx = indices[start:start + self.batch_size].to(self.device)
-                batch_states = states[batch_idx].to(self.device)
-                batch_actions = actions[batch_idx].to(self.device)
-                batch_old_log_probs = old_log_probs[batch_idx].to(self.device)
-                batch_advantages = advantages[batch_idx].to(self.device)
-                batch_returns = returns[batch_idx].to(self.device)
+                batch_idx = indices[start:start + self.batch_size]
+                batch_states = states[batch_idx]
+                batch_actions = actions[batch_idx]
+                batch_old_log_probs = old_log_probs[batch_idx]
+                batch_advantages = advantages[batch_idx]
+                batch_returns = returns[batch_idx]
 
                 #Re-evaluate the action log probabilities, state values, and entropy for the current policy
                 new_log_probs, state_values, entropy = self.actor_critic.evaluate(batch_states, batch_actions)

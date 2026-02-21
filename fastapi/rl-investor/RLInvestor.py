@@ -35,6 +35,7 @@ class RL_Investor:
         else:
             self.device = torch.device("cpu")
 
+        print(f"Running on device: {self.device}")
         self.attention.to(self.device)
 
     def _prepare_inputs(self, data):
@@ -72,7 +73,7 @@ class RL_Investor:
 
         return torch.cat([data, tf], dim=-1)
 
-    def train(self, training_data, training_opens, djia_opens, djia_closes, num_episodes=100, rollout_length=256):
+    def train(self, training_data, training_opens, djia_opens, djia_closes, num_episodes=10, rollout_length=256):
 
         tickers = sorted(training_data.keys())
 
@@ -113,7 +114,7 @@ class RL_Investor:
                 last_x = attended[:, -1, :]
 
                 action, log_prob, value = ppo.actor_critic.get_action(last_x)
-                action_np = action.squeeze(0).detach().numpy()
+                action_np = action.squeeze(0).detach().cpu().numpy()
 
                 #Step parallel sub-strategy
                 trend_index, short_limit, buy_limit, _ = parallel.step(float(action_np.mean()))
@@ -123,7 +124,7 @@ class RL_Investor:
 
                 #Store the transition
                 transitions.append(Transition(
-                    state=last_x.squeeze(0).detach().numpy(),
+                    state=last_x.squeeze(0).detach().cpu().numpy(),
                     action=action_np,
                     reward=reward,
                     value=value.item(),
@@ -141,7 +142,7 @@ class RL_Investor:
                     else:
                         with torch.no_grad():
                             _, next_val = ppo.actor_critic(last_x)
-                            next_value = next_val.item()
+                            next_value = next_val.squeeze(-1).item()
 
                     #Update the PPO agent with the collected transitions
                     metrics = ppo.update(transitions, next_value)
@@ -194,7 +195,7 @@ class RL_Investor:
 
             with torch.no_grad():
                 action, _, _ = self.ppo.actor_critic.get_action(last_x)
-                action_np = action.squeeze(0).detach().numpy()
+                action_np = action.squeeze(0).detach().cpu().numpy()
 
             trend_index, short_limit, buy_limit, _ = parallel.step(float(action_np.mean()))
 
