@@ -6,6 +6,7 @@ from datetime import timedelta
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 
 from connector import get_connection
 from naive_nn import NaiveNN
@@ -31,6 +32,7 @@ from admin_jobs import (
     serialize_job,
     start_update_job,
 )
+from scheduled_updates import get_scheduler_status, set_scheduler_enabled, start_scheduler, stop_scheduler
 app = FastAPI()
 LOGGER = logging.getLogger("uvicorn.error")
 
@@ -43,6 +45,30 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.on_event("startup")
+def start_background_jobs() -> None:
+    start_scheduler()
+
+
+@app.on_event("shutdown")
+def stop_background_jobs() -> None:
+    stop_scheduler()
+
+
+class SchedulerEnabledRequest(BaseModel):
+    enabled: bool
+
+
+@app.get("/api/admin/scheduler")
+def admin_scheduler_status():
+    return get_scheduler_status()
+
+
+@app.post("/api/admin/scheduler/enabled")
+def admin_scheduler_enabled(request: SchedulerEnabledRequest):
+    return set_scheduler_enabled(request.enabled)
 
 
 @app.exception_handler(sqlite3.Error)

@@ -13,5 +13,7 @@ services:
       dockerfile: Dockerfile
     environment:
       - DB_PATH=/data/stocks.db
+      - SCHEDULED_UPDATE_ENABLED=true
+      - SCHEDULED_UPDATE_TIMEZONE=America/Chicago
     volumes:
       - ./data:/data
