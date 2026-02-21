@@ -1,6 +1,5 @@
 import numpy as np
 
-
 class ParallelSubStrategy:
     def __init__(self, djia_close_prices, djia_open_prices, initial_cash=1e6, short_suspend_return=.05, short_expand_return=-.05, buy_reduce_return=-.05, initial_short_limit=1e4, reward_scaling=1.0):
         self.djia_close_prices = np.array(djia_close_prices)

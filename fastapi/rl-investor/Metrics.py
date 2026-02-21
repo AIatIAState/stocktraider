@@ -1,7 +1,6 @@
 import numpy as np
 from matplotlib import pyplot as plt
 
-
 def compute_metrics(portfolio_values, risk_free_rate=.03, min_acceptable_retrun=0.03):
     portfolio_values = np.array(portfolio_values)
 

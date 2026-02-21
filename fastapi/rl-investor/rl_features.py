@@ -1,9 +1,6 @@
 from datetime import date, timedelta
-
-import numpy as np
 import pandas as pd
 import pandas_ta as ta
-import torch
 import yfinance
 
 

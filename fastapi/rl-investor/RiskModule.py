@@ -1,6 +1,5 @@
 import numpy as np
 
-
 class RiskModule:
     def __init__(self, alpha=.05):
         self.alpha = alpha

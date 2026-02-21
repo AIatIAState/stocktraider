@@ -1,9 +1,7 @@
 from collections import namedtuple
 
 import torch
-from sympy.physics.units import action
 from torch import nn
-
 #Create a container for a one timestep of experience
 
 Transition = namedtuple('Transition',[

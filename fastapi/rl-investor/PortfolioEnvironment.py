@@ -1,6 +1,7 @@
 import numpy as np
-
 from RiskModule import RiskModule
+
+
 class PortfolioEnvironment:
     def __init__(self, indicators, opens, tickers, initial_cash=1e6, transaction_cost=0, lambda_risk=.5, alpha=.05, short_sell_limit=1e4):
         self.indicators = indicators

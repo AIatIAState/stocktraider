@@ -14,3 +14,5 @@ torchaudio>=2.8.0
 pytorch-lightning>=2.2.0
 pandas
 pandas_ta
+numpy
+bs4
