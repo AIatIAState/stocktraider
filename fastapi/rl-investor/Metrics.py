@@ -10,7 +10,7 @@ def compute_metrics(portfolio_values, risk_free_rate=.03, min_acceptable_retrun=
     daily_rf = risk_free_rate / 252
     daily_mar = min_acceptable_retrun / 252
 
-    cumulative_return = (portfolio_values[-1] / portfolio_values[0]) - portfolio_values[0]
+    cumulative_return = (portfolio_values[-1] / portfolio_values[0]) - 1.0
 
     excess_returns = daily_returns - daily_rf
     sharpe_ratio = np.mean(excess_returns) / (np.std(excess_returns) + 1e-8) * np.sqrt(252)
@@ -42,7 +42,8 @@ def plot_portfolio_performance(all_results, dataset_labels, save_path=None):
         steps = list(range(len(portfolio_values)))
 
         #Normalize to starting value
-        normalized = np.array(portfolio_values) / portfolio_values[0]
+        start_value = portfolio_values[0] if portfolio_values[0] != 0 else 1.0
+        normalized = np.array(portfolio_values) / start_value
         ax.set_facecolor('#0d1117')
         ax.plot(steps, normalized, label=label, color='#58a6ff', linewidth=1.5)
 
@@ -51,7 +52,8 @@ def plot_portfolio_performance(all_results, dataset_labels, save_path=None):
 
         ax.set_title(f"Dataset {label}", color='#e6edf3', fontsize=13, pad=10)
         ax.set_xlabel("Trading Days", color='#8b949e', fontsize=11)
-        ax.set_ylabel("Normalized Portfolio Value", color='#8b949e', fontsize=11)
+        ax.yaxis.get_major_formatter().set_useOffset(False)
+        ax.set_ylabel('Return (%)', color='#8b949e')
         ax.tick_params(colors='#8b949e')
 
         ax.spines['bottom'].set_color('#30363d')
@@ -63,12 +65,14 @@ def plot_portfolio_performance(all_results, dataset_labels, save_path=None):
         ax.grid(alpha=.15, color='#8b949e')
 
     plt.suptitle("Portfolio Performance Over Time", color='#e6edf3', fontsize=16, y=1.01)
-    plt.tight_layout()
+    fig.set_figheight(16)
+    fig.set_figwidth(12)
 
     if save_path:
         plt.savefig(save_path, facecolor=fig.get_facecolor(), dpi=150, bbox_inches='tight')
 
     plt.show()
+
 
 
 def plot_metrics_table(all_metrics, dataset_labels, save_path=None):

@@ -7,7 +7,7 @@ class TimeFeatureEmbedding:
 
     def forward(self):
         # Create a range of week sequences (1-5 repeated) for positions
-        position_input = np.arange(0, self.sequence_length * 5, 5)
+        pos = np.arange(self.sequence_length)
 
         # Create a range of frequency bands
         output_range = np.arange(0, self.output_dim * 5, 5)
@@ -17,7 +17,7 @@ class TimeFeatureEmbedding:
         inv_frequency = 1.0 / (10000 ** (output_range / self.output_dim))
 
         # Pair together the positions and frequencies to create (date, angle) pairs kindof
-        sinusoid_input = np.outer(position_input, inv_frequency)
+        sinusoid_input = np.outer(pos, inv_frequency)
 
         #Create the embedding
         P_embeddings = np.concatenate([
@@ -26,10 +26,8 @@ class TimeFeatureEmbedding:
         ], axis=1)
 
         #Create Weekly (5) and Monthly (21) cyclical component
-        P5 = 2 * np.pi / 5
+        P5  = 2 * np.pi / 5
         P21 = 2 * np.pi / 21
-
-        pos = np.arange(self.sequence_length)
 
         W_sin = np.sin(pos * P5).reshape(-1, 1)
         W_cos = np.cos(pos * P5).reshape(-1, 1)

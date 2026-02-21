@@ -41,42 +41,42 @@ dow_tickers = [
         "MMM", "AXP", "AAPL", "BA", "CAT", "CVX", "CSCO", "KO",
         "DD", "XOM", "GS", "HD", "IBM", "INTC", "JNJ", "JPM",
         "MCD", "MRK", "MSFT", "NKE", "PFE", "PG", "TRV", "UNH",
-        "RTX", "VZ", "V", "CVS", "WMT", "DIS"
+        "RTX", "VZ", "V", "WMT", "DIS"
     ],
     #2020
     [
         "MMM", "AXP", "AAPL", "BA", "CAT", "CVX", "CSCO", "KO",
         "DD", "XOM", "GS", "HD", "IBM", "INTC", "JNJ", "JPM",
         "MCD", "MRK", "MSFT", "NKE", "PFE", "PG", "TRV", "UNH",
-        "RTX", "VZ", "V", "CVS", "WMT", "DIS"
+        "RTX", "VZ", "V", "WMT", "DIS"
     ],
     #2021
     [
         "MMM", "AXP", "AAPL", "BA", "CAT", "CVX", "CSCO", "KO",
-        "DOW", "AMGN", "GS", "HD", "IBM", "INTC", "JNJ", "JPM",
+         "AMGN", "GS", "HD", "IBM", "INTC", "JNJ", "JPM",
         "MCD", "MRK", "MSFT", "NKE", "CRM", "PG", "TRV", "UNH",
-        "HON", "VZ", "V", "CVS", "WMT", "DIS"
+        "HON", "VZ", "V", "WMT", "DIS"
     ],
     #2022
     [
             "MMM", "AXP", "AAPL", "BA", "CAT", "CVX", "CSCO", "KO",
-            "DOW", "AMGN", "GS", "HD", "IBM", "INTC", "JNJ", "JPM",
+             "AMGN", "GS", "HD", "IBM", "INTC", "JNJ", "JPM",
             "MCD", "MRK", "MSFT", "NKE", "CRM", "PG", "TRV", "UNH",
-            "HON", "VZ", "V", "WBA", "WMT", "DIS"
+            "HON", "VZ", "V", "WMT", "DIS"
     ],
     #2023
     [
             "MMM", "AXP", "AAPL", "BA", "CAT", "CVX", "CSCO", "KO",
             "DOW", "AMGN", "GS", "HD", "IBM", "INTC", "JNJ", "JPM",
             "MCD", "MRK", "MSFT", "NKE", "CRM", "PG", "TRV", "UNH",
-            "HON", "VZ", "V", "CVS", "WMT", "DIS"
+            "HON", "VZ", "V", "WMT", "DIS"
     ],
     #2024
     [
             "MMM", "AXP", "AAPL", "BA", "CAT", "CVX", "CSCO", "KO",
             "DOW", "AMGN", "GS", "HD", "IBM", "INTC", "JNJ", "JPM",
             "MCD", "MRK", "MSFT", "NKE", "CRM", "PG", "TRV", "UNH",
-            "HON", "VZ", "V", "CVS", "WMT", "DIS"
+            "HON", "VZ", "V", "WMT", "DIS"
     ],
     #2025
     [
@@ -106,7 +106,7 @@ def simulate(rl_model):
         print(f"Collecting Testing Data: {testing_start_date} to {testing_end_date}")
         preprocessed_testing_data, _ = preprocess_data(testing_start_date, testing_end_date, tickers)
         testing_opens = get_opens(testing_start_date, testing_end_date, tickers)
-        testing_djia_opens, testing_djia_closes = get_djia(training_start_date, training_end_date)
+        testing_djia_opens, testing_djia_closes = get_djia(testing_start_date, testing_end_date)
 
         print(f"Testing RL Agent: {testing_start_date} to {testing_end_date}")
         predictions = model.predict(preprocessed_testing_data, testing_opens, testing_djia_opens, testing_djia_closes)
@@ -116,7 +116,7 @@ def simulate(rl_model):
 
         all_results.append(predictions)
         all_metrics.append(metrics)
-        dataset_labels.append(f"{training_start_date.year}-{training_end_date.year} Train / {testing_start_date.year}-{testing_end_date.year} Test")
+        dataset_labels.append(f"{testing_start_date.year}-{testing_end_date.year} Test")
 
         print(f"\nDataset {testing_end_date.year} Results:")
         print(f"  Cumulative Return: {metrics['cumulative_return']:.4f}")
@@ -124,18 +124,18 @@ def simulate(rl_model):
         print(f"  Omega Ratio:       {metrics['omega_ratio']:.4f}")
         print(f"  Sortino Ratio:     {metrics['sortino_ratio']:.4f}\n")
 
-        # Generate plots
-        plot_portfolio_performance(
-            all_results,
-            dataset_labels,
-            save_path="results/portfolio_performance.png"
-        )
-        plot_metrics_table(
-            all_metrics,
-            dataset_labels,
-            save_path="results/metrics_table.png"
-        )
+    # Generate plots
+    plot_portfolio_performance(
+        all_results,
+        dataset_labels,
+        save_path="results/portfolio_performance.png"
+    )
+    plot_metrics_table(
+        all_metrics,
+        dataset_labels,
+        save_path="results/metrics_table.png"
+    )
 
-        return all_results, all_metrics
+    return all_results, all_metrics
 if __name__ == "__main__":
     simulate(RL_Investor)

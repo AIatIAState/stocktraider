@@ -98,7 +98,7 @@ class PortfolioEnvironment:
             if target_shares > self.shares[i]:
 
                 #Create a buying limit
-                max_buy = (self.cash * buy_limit * trend_index / max(open_prices[i], 1e-8))
+                max_buy = (self.cash * buy_limit * max(trend_index, .1) / max(open_prices[i], 1e-8))
                 buy_amount = min(max_buy, target_shares - self.shares[i])
                 buys[i] = buy_amount
 

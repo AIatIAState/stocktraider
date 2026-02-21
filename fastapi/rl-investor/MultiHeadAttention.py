@@ -76,14 +76,14 @@ class TimeAwareMultiHeadAttention(nn.Module):
         Q, K, F_feat, V = torch.chunk(qkfv, 4, dim=-1)
 
         #Reshape to create multiple attention heads (ex. (1,40,64) -> (1,40,4,16))
-        def reshape_and_norm(t):
+        def reshape(t):
             t = t.reshape(batch_size, trading_days + tau, self.num_heads, self.head_dim)
-            return F.softmax(t, dim=2)
+            return t
 
-        Q = reshape_and_norm(Q)
-        K = reshape_and_norm(K)
-        F_feat = reshape_and_norm(F_feat)
-        V = reshape_and_norm(V)
+        Q = reshape(Q)
+        K = reshape(K)
+        F_feat = reshape(F_feat)
+        V = reshape(V)
 
         #Get weekly and monthly masks to only attend to the corresponding time features on a weekly or monthly basis
         D = self.head_dim

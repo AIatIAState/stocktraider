@@ -35,7 +35,18 @@ class RL_Investor:
         tickers = sorted(data.keys())
         frames = []
         for ticker in tickers:
-            df = data[ticker].fillna(0).values
+            df = data[ticker]
+
+            df = df.ffill()
+            df = df.bfill()
+            df = df.fillna(0)
+
+            # Clip extreme values that could destabilise training
+            df = df.clip(
+                lower=df.quantile(0.001),
+                upper=df.quantile(0.999),
+                axis=1
+            )
             frames.append(df)
         tensor = np.stack(frames, axis=1)
         return torch.tensor(tensor, dtype=torch.float32)
@@ -54,14 +65,17 @@ class RL_Investor:
 
         return torch.cat([data, tf], dim=-1)
 
-    def train(self, training_data, training_opens, djia_opens, djia_closes, num_episodes=1, rollout_length=256):
+    def train(self, training_data, training_opens, djia_opens, djia_closes, num_episodes=100, rollout_length=256):
 
         tickers = sorted(training_data.keys())
 
         ppo = PPO(input_dim=self.output_dim, num_tickers=len(tickers), epochs=20)
 
+        #Rebuilt optimizer to include attention parameters in gradient updates
+        all_params = list(ppo.actor_critic.parameters()) + list(self.attention.parameters())
+        ppo.optimizer = torch.optim.Adam(all_params, lr=3e-4)
         env = PortfolioEnvironment(training_data, training_opens, tickers=tickers, lambda_risk=self.lambda_risk)
-        parallel = ParallelSubStrategy(djia_opens, djia_closes)
+        parallel = ParallelSubStrategy(djia_closes, djia_opens)
 
         training_tensor = self._prepare_inputs(training_data)
         x = self._attach_time_features(training_tensor)
@@ -149,7 +163,7 @@ class RL_Investor:
         tickers = sorted(testing_data.keys())
 
         env = PortfolioEnvironment(testing_data, testing_opens, tickers=tickers, lambda_risk=self.lambda_risk)
-        parallel = ParallelSubStrategy(djia_opens, djia_closes)
+        parallel = ParallelSubStrategy(djia_closes, djia_opens)
 
         testing_tensor = self._prepare_inputs(testing_data)
         x = self._attach_time_features(testing_tensor)
