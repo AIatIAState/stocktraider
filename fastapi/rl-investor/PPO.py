@@ -147,9 +147,9 @@ class PPO:
         advantages, returns = self.compute_gae(transitions, next_value)
 
         #Convert stored experience into tensors for PPO updates
-        states = torch.stack([torch.tensor(t.state, dtype=torch.float32) for t in transitions])
-        actions = torch.stack([torch.tensor(t.action, dtype=torch.float32) for t in transitions])
-        old_log_probs = torch.stack([torch.tensor(t.log_prob, dtype=torch.float32) for t in transitions])
+        states = torch.stack([torch.tensor(t.state, dtype=torch.float32) for t in transitions]).to(self.device)
+        actions = torch.stack([torch.tensor(t.action, dtype=torch.float32) for t in transitions]).to(self.device)
+        old_log_probs = torch.stack([torch.tensor(t.log_prob, dtype=torch.float32) for t in transitions]).to(self.device)
 
         advantages = advantages.to(self.device)
         returns = returns.to(self.device)
