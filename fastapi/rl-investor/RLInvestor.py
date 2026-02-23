@@ -133,7 +133,7 @@ class RL_Investor:
 
                 #Store the transition
                 transitions.append(Transition(
-                    state=last_x.squeeze(0).detach().cpu().numpy(),
+                    state=combined.squeeze(0).detach().cpu().numpy(),
                     action=action_np,
                     reward=reward,
                     value=value.item(),
