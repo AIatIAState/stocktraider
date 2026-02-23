@@ -1,9 +1,9 @@
 import numpy as np
 
 class ParallelSubStrategy:
-    def __init__(self, djia_close_prices, djia_open_prices, initial_cash=1e6, short_suspend_return=.05, short_expand_return=-.05, buy_reduce_return=-.05, initial_short_limit=1e4, reward_scaling=1.0):
-        self.djia_close_prices = np.array(djia_close_prices)
-        self.djia_open_prices = np.array(djia_open_prices)
+    def __init__(self, index_close_prices, index_open_prices, initial_cash=1e6, short_suspend_return=.05, short_expand_return=-.05, buy_reduce_return=-.05, initial_short_limit=1e4, reward_scaling=1.0):
+        self.index_close_prices = np.array(index_close_prices)
+        self.index_open_prices = np.array(index_open_prices)
         self.initial_cash = initial_cash
         self.reward_scaling = reward_scaling
 
@@ -31,10 +31,10 @@ class ParallelSubStrategy:
         if self.total_assets == 0:
             return 0.0
 
-        if self.current_step >= len(self.djia_close_prices):
+        if self.current_step >= len(self.index_close_prices):
             return 0.5 # Neutral if we run out of data
 
-        price = self.djia_close_prices[self.current_step]
+        price = self.index_close_prices[self.current_step]
         position_value = self.shares * price
 
         return float(np.clip(position_value / self.total_assets, 0.0, 1.0))
@@ -56,10 +56,10 @@ class ParallelSubStrategy:
             self.buy_limit = 1.0
 
     def step(self, action):
-        if self.current_step >= len(self.djia_open_prices) - 1:
+        if self.current_step >= len(self.index_open_prices) - 1:
             return self._get_trend_index(), self.short_limit, self.buy_limit, 0.0
 
-        price = self.djia_open_prices[self.current_step]
+        price = self.index_open_prices[self.current_step]
         self.prev_assets = self.total_assets
 
         #Process sells
@@ -77,7 +77,7 @@ class ParallelSubStrategy:
             self.cash -= buy_amount * price
 
         #Calculate total assets
-        next_price = self.djia_close_prices[self.current_step + 1]
+        next_price = self.index_close_prices[self.current_step + 1]
         self.total_assets = self.cash + self.shares * next_price
 
         #Calculate period return

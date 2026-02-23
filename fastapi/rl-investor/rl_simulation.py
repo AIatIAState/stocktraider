@@ -1,17 +1,10 @@
 from datetime import date, timedelta
-from rl_features import preprocess_data, get_opens, get_djia
+from rl_features import preprocess_data, get_opens, get_index
 from RLInvestor import RL_Investor
 from Metrics import compute_metrics, plot_portfolio_performance, plot_metrics_table
+from symbol_collector import get_sp500_at_date
 
-training_starting_dates = [
-    date(2016, 1, 1),
-    date(2017, 1, 1),
-    date(2018, 1, 1),
-    date(2019, 1, 1),
-    date(2020, 1, 1),
-    date(2021, 1, 1),
-    date(2022, 1, 1)
-]
+import argparse
 
 training_ending_dates = [
     date(2018, 12, 31),
@@ -87,29 +80,39 @@ dow_tickers = [
     ]
 ]
 
-def simulate(rl_model, gpu=False):
+def simulate(rl_model, gpu=False, look_back_period=3, episodes=100, index="dow"):
 
     all_results = []
     all_metrics = []
     dataset_labels = []
 
-    for training_start_date, training_end_date, testing_start_date, testing_end_date, tickers in zip(training_starting_dates, training_ending_dates, testing_start_dates, testing_end_dates, dow_tickers):
+    if index == "dow":
+        yearly_tickers = dow_tickers
+    else:
+        yearly_tickers = [get_sp500_at_date(training_end_date + timedelta(days=1)) for training_end_date in training_ending_dates]
+
+    print(yearly_tickers)
+    training_starting_dates = [training_ending_date - timedelta(days=look_back_period * 365) for training_ending_date in training_ending_dates]
+
+    for training_start_date, training_end_date, testing_start_date, testing_end_date, tickers in zip(training_starting_dates, training_ending_dates, testing_start_dates, testing_end_dates, yearly_tickers):
         print(f"Collecting Training Data: {training_start_date} to {training_end_date}")
-        preprocessed_training_data, _ = preprocess_data(training_start_date, training_end_date, tickers)
-        training_opens = get_opens(training_start_date, training_end_date, tickers)
-        training_djia_opens, training_djia_closes = get_djia(training_start_date, training_end_date)
+        preprocessed_training_data, publicly_available_tickers = preprocess_data(training_start_date, training_end_date, tickers)
+        training_opens, _ = get_opens(training_start_date, training_end_date, publicly_available_tickers)
+        training_index_opens, training_index_closes = get_index(index, training_start_date, training_end_date)
+
+        print(f"{len(publicly_available_tickers)} tickers out of {len(tickers)} publicly available for training/testing")
 
         print(f"Training RL Agent: {training_start_date} to {training_end_date}")
-        model = rl_model(len(tickers), gpu=gpu)
-        model.train(preprocessed_training_data, training_opens, training_djia_opens, training_djia_closes)
+        model = rl_model(len(publicly_available_tickers), gpu=gpu)
+        model.train(preprocessed_training_data, training_opens, training_index_opens, training_index_closes, num_episodes=episodes)
 
         print(f"Collecting Testing Data: {testing_start_date} to {testing_end_date}")
-        preprocessed_testing_data, _ = preprocess_data(testing_start_date, testing_end_date, tickers)
-        testing_opens = get_opens(testing_start_date, testing_end_date, tickers)
-        testing_djia_opens, testing_djia_closes = get_djia(testing_start_date, testing_end_date)
+        preprocessed_testing_data, _ = preprocess_data(testing_start_date, testing_end_date, publicly_available_tickers)
+        testing_opens, _ = get_opens(testing_start_date, testing_end_date, publicly_available_tickers)
+        testing_index_opens, testing_index_closes = get_index(index, testing_start_date, testing_end_date)
 
         print(f"Testing RL Agent: {testing_start_date} to {testing_end_date}")
-        predictions = model.predict(preprocessed_testing_data, testing_opens, testing_djia_opens, testing_djia_closes)
+        predictions = model.predict(preprocessed_testing_data, testing_opens, testing_index_opens, testing_index_closes)
 
         portfolio_values = [r['portfolio_value'] for r in predictions]
         metrics = compute_metrics(portfolio_values)
@@ -138,4 +141,11 @@ def simulate(rl_model, gpu=False):
 
     return all_results, all_metrics
 if __name__ == "__main__":
-    simulate(RL_Investor, True)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--index", type=str, default="dow")
+    parser.add_argument("--lookback", type=int, default=3)
+    parser.add_argument("--episodes", type=int, default=100)
+    parser.add_argument("--gpu", type=bool, default=True)
+    args = parser.parse_args()
+
+    simulate(RL_Investor, args.gpu, look_back_period=args.lookback, episodes=args.episodes, index=args.index)

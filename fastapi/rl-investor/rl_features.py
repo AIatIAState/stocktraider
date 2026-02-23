@@ -5,7 +5,7 @@ import yfinance
 
 
 def preprocess_data(start_date, end_date, tickers):
-    df_prices = yfinance.download(tickers, start=(start_date - timedelta(days=60)).strftime("%Y-%m-%d"), end=end_date.strftime("%Y-%m-%d"), group_by='ticker', interval="1d", progress=False, threads=True)
+    df_prices = yfinance.download(tickers, start=(start_date - timedelta(days=60)).strftime("%Y-%m-%d"), end=end_date.strftime("%Y-%m-%d"), group_by='ticker', interval="1d", progress=False, threads=True, auto_adjust=True)
     df_close = (
         df_prices.xs("Close", axis=1, level="Price")
         .stack(level=0)
@@ -42,16 +42,28 @@ def preprocess_data(start_date, end_date, tickers):
 
     indicators = compute_indicators(df_close, df_high, df_low, df_volume)
 
+    found_tickers = []
     for ticker in indicators:
         df = indicators[ticker]
-        indicators[ticker] = df[(df.index >= start_date) & (df.index <= end_date)]
+        if df.empty:
+            del indicators[ticker]
+        else:
+            indicators[ticker] = df[(df.index >= start_date) & (df.index <= end_date)]
+            found_tickers.append(ticker)
 
-    return indicators, tickers
+    return indicators, found_tickers
 
 def get_opens(start_date, end_date, tickers):
-    df_prices = yfinance.download(tickers, start=start_date.strftime("%Y-%m-%d"), end=end_date.strftime("%Y-%m-%d"), group_by='ticker', interval="1d", progress=False, threads=True)
+    df_prices = yfinance.download(tickers, start=start_date.strftime("%Y-%m-%d"), end=end_date.strftime("%Y-%m-%d"),
+                                  group_by='ticker', interval="1d", progress=False, threads=True, auto_adjust=True)
+
+    df_open = df_prices.xs("Open", axis=1, level="Price")
+
+    valid_tickers = df_open.columns[df_open.notna().any()].tolist()
+    df_open = df_open[valid_tickers]
+
     df = (
-        df_prices.xs("Open", axis=1, level="Price")
+        df_open
         .stack(level=0)
         .reset_index()
     )
@@ -59,10 +71,14 @@ def get_opens(start_date, end_date, tickers):
     df["date"] = pd.to_datetime(df["date"]).dt.date
     df = df[["ticker", "date", "open"]]
 
-    return df
+    return df, valid_tickers
 
-def get_djia(start_date, end_date):
-    df = yfinance.download("^DJI", start=start_date.strftime("%Y-%m-%d"),
+def get_index(index, start_date, end_date):
+    if index == "dow":
+        index_ticker = "DJI"
+    else:
+        index_ticker = "SPY"
+    df = yfinance.download(f"^{index_ticker}", start=start_date.strftime("%Y-%m-%d"),
                            end=end_date.strftime("%Y-%m-%d"), progress=False)
     return df["Open"].values, df["Close"].values
 

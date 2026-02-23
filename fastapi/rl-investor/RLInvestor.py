@@ -8,7 +8,7 @@ from ParellelSubStrategy import ParallelSubStrategy
 from PPO import PPO, Transition
 
 class RL_Investor:
-    def __init__(self, num_tickers, num_features=9, sequence_length=30, output_dim=64, num_heads=4, lambda_risk=.5, alpha=.5, gpu=False):
+    def __init__(self, num_tickers, num_features=9, sequence_length=30, output_dim=64, num_heads=4, lambda_risk=.5, gpu=False):
         self.sequence_length = sequence_length
         self.num_tickers = num_tickers
         self.num_features = num_features
@@ -73,7 +73,7 @@ class RL_Investor:
 
         return torch.cat([data, tf], dim=-1)
 
-    def train(self, training_data, training_opens, djia_opens, djia_closes, num_episodes=10, rollout_length=256):
+    def train(self, training_data, training_opens, index_opens, index_closes, num_episodes=10, rollout_length=256):
 
         tickers = sorted(training_data.keys())
 
@@ -83,7 +83,7 @@ class RL_Investor:
         all_params = list(ppo.actor_critic.parameters()) + list(self.attention.parameters())
         ppo.optimizer = torch.optim.Adam(all_params, lr=3e-4)
         env = PortfolioEnvironment(training_data, training_opens, tickers=tickers, lambda_risk=self.lambda_risk)
-        parallel = ParallelSubStrategy(djia_closes, djia_opens)
+        parallel = ParallelSubStrategy(index_closes, index_opens)
 
         training_tensor = self._prepare_inputs(training_data)
         x = self._attach_time_features(training_tensor)
@@ -164,14 +164,14 @@ class RL_Investor:
         self.ppo = ppo
 
 
-    def predict(self, testing_data, testing_opens, djia_opens, djia_closes):
+    def predict(self, testing_data, testing_opens, index_opens, index_closes):
         if not hasattr(self, 'ppo'):
             raise ValueError("Model must be trained before prediction")
 
         tickers = sorted(testing_data.keys())
 
         env = PortfolioEnvironment(testing_data, testing_opens, tickers=tickers, lambda_risk=self.lambda_risk)
-        parallel = ParallelSubStrategy(djia_closes, djia_opens)
+        parallel = ParallelSubStrategy(index_closes, index_opens)
 
         testing_tensor = self._prepare_inputs(testing_data)
         x = self._attach_time_features(testing_tensor)
