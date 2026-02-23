@@ -135,6 +135,8 @@ class PPO:
         #Convert advantages to a tensor and normalize for stability
         advantages = torch.tensor(advantages, dtype=torch.float32)
 
+        returns = advantages + torch.tensor(values, dtype=torch.float32)
+
         #Normalize advantages to have mean 0 and std 1 for more stable training
         #Accomodate for rare occurence all advantages are the same value
         if advantages.std() > 1e-8:
@@ -142,8 +144,6 @@ class PPO:
         else:
             advantages = advantages - advantages.mean()
 
-        #Calculate returns as the sum of advantages and value estimates
-        returns = advantages + torch.tensor(values, dtype=torch.float32)
 
         return advantages, returns
 
@@ -200,8 +200,9 @@ class PPO:
                 #Total loss with entropy regularization
                 loss = actor_loss + self.value_coef * critic_loss + self.entropy_coef * entropy_loss
 
-                if torch.isfinite(loss):
+                if not torch.isfinite(loss):
                     self.optimizer.zero_grad()
+                    print("WARNING: Non-finite loss, skipping batch")
                     continue
 
                 self.optimizer.zero_grad()

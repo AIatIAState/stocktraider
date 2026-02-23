@@ -16,6 +16,9 @@ class RL_Investor:
         self.num_heads = num_heads
         self.lambda_risk = lambda_risk
 
+        self.portfolio_state_dim = 1 + self.num_tickers
+        self.ppo_input_dim = self.output_dim + self.portfolio_state_dim
+
         self.time_embedding = TimeFeatureEmbedding(output_dim, sequence_length)
         self.time_features = self.time_embedding.forward()
 
@@ -59,6 +62,7 @@ class RL_Investor:
         tensor = np.stack(frames, axis=1)
         return torch.tensor(tensor, dtype=torch.float32).to(self.device)
 
+
     def _attach_time_features(self, data):
         num_days = data.shape[0]
 
@@ -77,7 +81,7 @@ class RL_Investor:
 
         tickers = sorted(training_data.keys())
 
-        ppo = PPO(input_dim=self.output_dim, num_tickers=len(tickers), device=self.device, epochs=20)
+        ppo = PPO(input_dim=self.ppo_input_dim, num_tickers=self.num_tickers, device=self.device, epochs=20)
 
         #Rebuilt optimizer to include attention parameters in gradient updates
         all_params = list(ppo.actor_critic.parameters()) + list(self.attention.parameters())
@@ -114,7 +118,11 @@ class RL_Investor:
                 #Take the last timestep's output for the action
                 last_x = attended[:, -1, :]
 
-                action, log_prob, value = ppo.actor_critic.get_action(last_x)
+                #Set up portfolio state [cash_ratio, investments] + [features]
+                portfolio_state = torch.tensor(state, dtype=torch.float32).to(self.device).unsqueeze(0)
+                combined = torch.cat([last_x, portfolio_state], dim=-1)
+
+                action, log_prob, value = ppo.actor_critic.get_action(combined)
                 action_np = action.squeeze(0).detach().cpu().numpy()
 
                 #Step parallel sub-strategy
@@ -177,6 +185,7 @@ class RL_Investor:
         testing_tensor = self._prepare_inputs(testing_data)
         x = self._attach_time_features(testing_tensor)
 
+        state = env.reset()
         env.reset()
         parallel.reset()
         done = False
@@ -196,13 +205,18 @@ class RL_Investor:
 
             last_x = attended[:, -1, :]
 
+            #Build portfolio state
+            portfolio_state = torch.tensor(state, dtype=torch.float32).to(self.device).unsqueeze(0)
+            combined = torch.cat([last_x, portfolio_state], dim=-1)
+
             with torch.no_grad():
-                action, _, _ = self.ppo.actor_critic.get_action(last_x)
+                action, _, _ = self.ppo.actor_critic.get_action(combined)
                 action_np = action.squeeze(0).detach().cpu().numpy()
 
             trend_index, short_limit, buy_limit, _ = parallel.step(float(action_np.mean()))
 
             next_state, reward, done = env.step(action_np, trend_index, short_limit, buy_limit)
+            state = next_state
 
             results.append({
                 "step": step,

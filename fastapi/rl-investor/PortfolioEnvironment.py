@@ -57,22 +57,18 @@ class PortfolioEnvironment:
         if self.current_step >= self.num_days:
             return None
 
-        # Build the state vector
+        pv = max(self.portfolio_value, 1e-8)
+        cash_ratio = np.clip(self.cash / pv, 0.0, 1.0)
+
         day = self.trading_days[self.current_step]
-        feature_columns = ['close', 'boll_upper', 'boll_lower', 'cci', 'rsi', 'tr', 'dmi', 'macd', 'mfi']
-        state = [self.cash]
+        prices = self._get_closing_prices(day)
 
-        for i, ticker in enumerate(self.tickers):
-            df = self.indicators[ticker]
-            if day in df.index:
-                features = df.loc[day, feature_columns].fillna(0).values
-            else:
-                features = np.zeros(len(feature_columns))
+        holding_fractions = np.array([
+            np.clip((self.shares[i] * prices[i]) / pv, 0.0, 1.0)
+            for i in range(self.num_stocks)
+        ], dtype=np.float32)
 
-            #State vector for each ticker includes the number of shares held and the financial indicators for that day, concatenated together
-            f_tk = np.concatenate([[self.shares[i]], features])
-            state.extend(f_tk)
-        return np.array(state, dtype=np.float32)
+        return np.concatenate([[cash_ratio], holding_fractions], dtype=np.float32)
 
     def _execute_trades(self, action, open_prices, trend_index, short_limit, buy_limit):
         sells = np.zeros(self.num_stocks)
