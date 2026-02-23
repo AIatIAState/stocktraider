@@ -16,3 +16,4 @@ pandas
 pandas_ta
 numpy
 bs4
+lxml

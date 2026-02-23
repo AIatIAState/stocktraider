@@ -91,7 +91,6 @@ def simulate(rl_model, gpu=False, look_back_period=3, episodes=100, index="dow")
     else:
         yearly_tickers = [get_sp500_at_date(training_end_date + timedelta(days=1)) for training_end_date in training_ending_dates]
 
-    print(yearly_tickers)
     training_starting_dates = [training_ending_date - timedelta(days=look_back_period * 365) for training_ending_date in training_ending_dates]
 
     for training_start_date, training_end_date, testing_start_date, testing_end_date, tickers in zip(training_starting_dates, training_ending_dates, testing_start_dates, testing_end_dates, yearly_tickers):
@@ -142,7 +141,7 @@ def simulate(rl_model, gpu=False, look_back_period=3, episodes=100, index="dow")
     return all_results, all_metrics
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--index", type=str, default="dow")
+    parser.add_argument("--index", type=str, default="sp500")
     parser.add_argument("--lookback", type=int, default=3)
     parser.add_argument("--episodes", type=int, default=100)
     parser.add_argument("--gpu", type=bool, default=True)

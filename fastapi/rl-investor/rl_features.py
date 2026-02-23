@@ -2,10 +2,12 @@ from datetime import date, timedelta
 import pandas as pd
 import pandas_ta as ta
 import yfinance
+import logging
 
+logging.getLogger("yfinance").setLevel(logging.CRITICAL)
 
 def preprocess_data(start_date, end_date, tickers):
-    df_prices = yfinance.download(tickers, start=(start_date - timedelta(days=60)).strftime("%Y-%m-%d"), end=end_date.strftime("%Y-%m-%d"), group_by='ticker', interval="1d", progress=False, threads=True, auto_adjust=True)
+    df_prices = yfinance.download(tickers, start=(start_date - timedelta(days=60)).strftime("%Y-%m-%d"), end=end_date.strftime("%Y-%m-%d"), group_by='ticker', interval="1d", progress=False, threads=False, auto_adjust=True)
     df_close = (
         df_prices.xs("Close", axis=1, level="Price")
         .stack(level=0)
@@ -45,7 +47,9 @@ def preprocess_data(start_date, end_date, tickers):
     found_tickers = []
     for ticker in indicators:
         df = indicators[ticker]
-        if df.empty:
+
+        #Remove empty tickers or tickers with more than 5% of their stock history missing
+        if df.empty or (df['close'] == 0).mean() > .05:
             del indicators[ticker]
         else:
             indicators[ticker] = df[(df.index >= start_date) & (df.index <= end_date)]
@@ -55,7 +59,7 @@ def preprocess_data(start_date, end_date, tickers):
 
 def get_opens(start_date, end_date, tickers):
     df_prices = yfinance.download(tickers, start=start_date.strftime("%Y-%m-%d"), end=end_date.strftime("%Y-%m-%d"),
-                                  group_by='ticker', interval="1d", progress=False, threads=True, auto_adjust=True)
+                                  group_by='ticker', interval="1d", progress=False, threads=False, auto_adjust=True)
 
     df_open = df_prices.xs("Open", axis=1, level="Price")
 
@@ -75,11 +79,11 @@ def get_opens(start_date, end_date, tickers):
 
 def get_index(index, start_date, end_date):
     if index == "dow":
-        index_ticker = "DJI"
+        index_ticker = "^DJI"
     else:
-        index_ticker = "SPY"
-    df = yfinance.download(f"^{index_ticker}", start=start_date.strftime("%Y-%m-%d"),
-                           end=end_date.strftime("%Y-%m-%d"), progress=False)
+        index_ticker = "^GSPC"
+    df = yfinance.download(f"{index_ticker}", start=start_date.strftime("%Y-%m-%d"),
+                           end=end_date.strftime("%Y-%m-%d"), progress=False, auto_adjust=True, threads=False)
     return df["Open"].values, df["Close"].values
 
 def compute_indicators(df_close, df_high, df_low, df_volume):

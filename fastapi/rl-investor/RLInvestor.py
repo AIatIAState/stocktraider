@@ -191,6 +191,8 @@ class RL_Investor:
 
             attended = self.attention(x_flat)
 
+            attended = torch.nan_to_num(attended, nan=0.0)
+
             last_x = attended[:, -1, :]
 
             with torch.no_grad():

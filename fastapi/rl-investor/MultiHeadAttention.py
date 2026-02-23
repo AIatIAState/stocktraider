@@ -71,6 +71,8 @@ class TimeAwareMultiHeadAttention(nn.Module):
         #Normalize the instance
         x_norm = self.instance_norm(x_combined.permute(0, 2, 1)).permute(0, 2, 1)
 
+        x_norm = torch.nan_to_num(x_norm, nan=0.0, posinf=0.0, neginf=0.0)
+
         #Project to Q (queries), K (keys), F (time features), V (values)
         qkfv = self.qkfv_projection(x_norm)
         Q, K, F_feat, V = torch.chunk(qkfv, 4, dim=-1)
@@ -145,6 +147,8 @@ class TimeAwareMultiHeadAttention(nn.Module):
 
         #Scale and normalize
         S = F.softmax(S / (D ** .5), dim=2)
+
+        S = torch.nan_to_num(S, nan=0.0)
 
         #Causal mask, prevents model from attending to future timesteps by masking out attention scores for any future positions beyond the current day
         Mseq = torch.ones(trading_days, trading_days + tau, device=x.device)
