@@ -80,7 +80,7 @@ dow_tickers = [
     ]
 ]
 
-def simulate(rl_model, gpu=False, look_back_period=3, episodes=100, index="dow"):
+def simulate(gpu=False, look_back_period=3, episodes=100, index="dow", save_dir="results"):
 
     all_results = []
     all_metrics = []
@@ -102,7 +102,7 @@ def simulate(rl_model, gpu=False, look_back_period=3, episodes=100, index="dow")
         print(f"{len(publicly_available_tickers)} tickers out of {len(tickers)} publicly available for training/testing")
 
         print(f"Training RL Agent: {training_start_date} to {training_end_date}")
-        model = rl_model(len(publicly_available_tickers), gpu=gpu)
+        model = RL_Investor(len(publicly_available_tickers), gpu=gpu)
         model.train(preprocessed_training_data, training_opens, training_index_opens, training_index_closes, num_episodes=episodes)
 
         print(f"Collecting Testing Data: {testing_start_date} to {testing_end_date}")
@@ -130,12 +130,12 @@ def simulate(rl_model, gpu=False, look_back_period=3, episodes=100, index="dow")
     plot_portfolio_performance(
         all_results,
         dataset_labels,
-        save_path="results/portfolio_performance.png"
+        save_path=f"{save_dir}/portfolio_performance.png"
     )
     plot_metrics_table(
         all_metrics,
         dataset_labels,
-        save_path="results/metrics_table.png"
+        save_path=f"{save_dir}/metrics_table.png"
     )
 
     return all_results, all_metrics
@@ -145,6 +145,7 @@ if __name__ == "__main__":
     parser.add_argument("--lookback", type=int, default=3)
     parser.add_argument("--episodes", type=int, default=100)
     parser.add_argument("--gpu", type=bool, default=True)
+    parser.add_argument("--savedir", type=str, default="")
     args = parser.parse_args()
 
-    simulate(RL_Investor, args.gpu, look_back_period=args.lookback, episodes=args.episodes, index=args.index)
+    simulate(args.gpu, look_back_period=args.lookback, episodes=args.episodes, index=args.index, save_dir = "results-" + args.savedir)

@@ -109,6 +109,7 @@ class RL_Investor:
 
                 #Forward pass through attention
                 attended = self.attention(x_flat)
+                attended = torch.nan_to_num(attended, nan=0.0)
 
                 #Take the last timestep's output for the action
                 last_x = attended[:, -1, :]
