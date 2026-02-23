@@ -1,3 +1,4 @@
+import os
 from datetime import date, timedelta
 from rl_features import preprocess_data, get_opens, get_index
 from RLInvestor import RL_Investor
@@ -125,6 +126,11 @@ def simulate(gpu=False, look_back_period=3, episodes=100, index="dow", save_dir=
         print(f"  Sharpe Ratio:      {metrics['sharpe_ratio']:.4f}")
         print(f"  Omega Ratio:       {metrics['omega_ratio']:.4f}")
         print(f"  Sortino Ratio:     {metrics['sortino_ratio']:.4f}\n")
+
+
+    #Create save directory
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
 
     # Generate plots
     plot_portfolio_performance(
