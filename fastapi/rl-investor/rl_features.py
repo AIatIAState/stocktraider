@@ -80,8 +80,11 @@ def get_opens(start_date, end_date, tickers):
 def get_index(index, start_date, end_date):
     if index == "dow":
         index_ticker = "^DJI"
-    else:
+    elif index == "sp500":
         index_ticker = "^GSPC"
+    else:
+        index_ticker = "^NDX"
+
     df = yfinance.download(f"{index_ticker}", start=start_date.strftime("%Y-%m-%d"),
                            end=end_date.strftime("%Y-%m-%d"), progress=False, auto_adjust=True, threads=False)
     return df["Open"].values, df["Close"].values

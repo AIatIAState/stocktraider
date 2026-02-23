@@ -3,7 +3,7 @@ from datetime import date, timedelta
 from rl_features import preprocess_data, get_opens, get_index
 from RLInvestor import RL_Investor
 from Metrics import compute_metrics, plot_portfolio_performance, plot_metrics_table
-from symbol_collector import get_sp500_at_date
+from symbol_collector import get_sp500_at_date, get_nasdaq100_at_date
 
 import argparse
 
@@ -89,8 +89,10 @@ def simulate(gpu=False, look_back_period=3, episodes=100, index="dow", save_dir=
 
     if index == "dow":
         yearly_tickers = dow_tickers
-    else:
+    elif index == "sp500":
         yearly_tickers = [get_sp500_at_date(training_end_date + timedelta(days=1)) for training_end_date in training_ending_dates]
+    else:
+        yearly_tickers = [get_nasdaq100_at_date(training_end_date + timedelta(days=1)) for training_end_date in training_ending_dates]
 
     training_starting_dates = [training_ending_date - timedelta(days=look_back_period * 365) for training_ending_date in training_ending_dates]
 
@@ -149,7 +151,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--index", type=str, default="sp500")
     parser.add_argument("--lookback", type=int, default=3)
-    parser.add_argument("--episodes", type=int, default=100)
+    parser.add_argument("--episodes", type=int, default=10)
     parser.add_argument("--gpu", type=bool, default=True)
     parser.add_argument("--savedir", type=str, default="")
     args = parser.parse_args()
