@@ -143,6 +143,8 @@ class RL_Investor:
 
                 ep_reward += reward
                 state = next_state
+                next_portfolio_state = torch.tensor(next_state, dtype=torch.float32).to(
+                    self.device).unsqueeze(0)
 
                 #Update every rollout_length steps or at the end of the episode
                 if len(transitions) >= rollout_length or done:
@@ -150,7 +152,10 @@ class RL_Investor:
                         next_value = 0.0
                     else:
                         with torch.no_grad():
-                            _, next_val = ppo.actor_critic(last_x)
+
+                            next_combined = torch.cat([last_x, next_portfolio_state], dim=-1)
+
+                            _, next_val = ppo.actor_critic(next_combined)
                             next_value = next_val.squeeze(-1).item()
 
                     #Update the PPO agent with the collected transitions
