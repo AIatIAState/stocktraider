@@ -136,7 +136,11 @@ class PPO:
         advantages = torch.tensor(advantages, dtype=torch.float32)
 
         #Normalize advantages to have mean 0 and std 1 for more stable training
-        advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+        #Accomodate for rare occurence all advantages are the same value
+        if advantages.std() > 1e-8:
+            advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+        else:
+            advantages = advantages - advantages.mean()
 
         #Calculate returns as the sum of advantages and value estimates
         returns = advantages + torch.tensor(values, dtype=torch.float32)
@@ -196,6 +200,10 @@ class PPO:
                 #Total loss with entropy regularization
                 loss = actor_loss + self.value_coef * critic_loss + self.entropy_coef * entropy_loss
 
+                if torch.isfinite(loss):
+                    self.optimizer.zero_grad()
+                    continue
+
                 self.optimizer.zero_grad()
                 loss.backward()
 
@@ -209,6 +217,11 @@ class PPO:
                 total_critic += critic_loss.item()
                 total_entropy += entropy_loss.item()
                 num_updates += 1
+
+        # Guard against division by zero if all batches were skipped
+        if num_updates == 0:
+            return {'loss': 0.0, 'actor_loss': 0.0, 'critic_loss': 0.0, 'entropy_loss': 0.0}
+
         return {
             'loss': total_loss / num_updates,
             'actor_loss': total_actor / num_updates,

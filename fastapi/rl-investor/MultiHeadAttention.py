@@ -146,8 +146,8 @@ class TimeAwareMultiHeadAttention(nn.Module):
         )
 
         #Scale and normalize
+        S = torch.nan_to_num(S, nan=0.0, posinf=0.0, neginf=0.0)
         S = F.softmax(S / (D ** .5), dim=2)
-
         S = torch.nan_to_num(S, nan=0.0)
 
         #Causal mask, prevents model from attending to future timesteps by masking out attention scores for any future positions beyond the current day
@@ -166,5 +166,6 @@ class TimeAwareMultiHeadAttention(nn.Module):
 
         #Reshape
         O = O.reshape(batch_size, trading_days, self.num_heads * self.head_dim)
+        O = torch.nan_to_num(O, nan=0.0)
 
         return self.output_projection(O)

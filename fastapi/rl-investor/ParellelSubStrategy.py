@@ -28,7 +28,7 @@ class ParallelSubStrategy:
         return self._get_trend_index()
 
     def _get_trend_index(self):
-        if self.total_assets == 0:
+        if self.total_assets <= 0:
             return 0.0
 
         if self.current_step >= len(self.index_close_prices):

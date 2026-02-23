@@ -109,6 +109,7 @@ def compute_indicators(df_close, df_high, df_low, df_volume):
             'macd': ta.macd(c)['MACD_12_26_9'],
             'mfi': ta.mfi(h, l, c, v, length=14),
         })
+        features[ticker] = features[ticker].ffill().bfill().fillna(0)
     return features
 if __name__ == "__main__":
     preprocess_data(date(2020,1,1), date(2020,12,31), ["AAPL", "MSFT"])
