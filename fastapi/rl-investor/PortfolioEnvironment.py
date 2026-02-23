@@ -35,7 +35,8 @@ class PortfolioEnvironment:
         for ticker in self.tickers:
             df = self.indicators[ticker]
             if day in df.index:
-                prices.append(df.loc[day, 'close'])
+                val = df.loc[day, 'close']
+                prices.append(float(val) if np.isfinite(val) else 0.0)
             else:
                 prices.append(0.0)
         return np.array(prices)
@@ -46,7 +47,8 @@ class PortfolioEnvironment:
         for ticker in self.tickers:
             day_opens = self.opens[(self.opens['ticker'] == ticker) & (self.opens['date'] == day)]
             if not day_opens.empty:
-                prices.append(day_opens['open'].values[0])
+                val = day_opens['open'].values[0]
+                prices.append(float(val) if np.isfinite(val) else 0.0)
             else:
                 prices.append(0.0)
         return np.array(prices)
@@ -119,6 +121,8 @@ class PortfolioEnvironment:
 
         # Reward function calculating the percentage change in total assets considering risk
         X_t = delta_P / P_prev
+        X_t = X_t if np.isfinite(X_t) else 0.0
+
         icvaR = self.risk_module.update(X_t)
         return delta_P - self.lambda_risk * icvaR
 
