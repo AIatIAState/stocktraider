@@ -18,11 +18,11 @@ class RiskModule:
         X = np.array(self.return_history)
 
         #Find the minimum value of the cumulative distribution where the probability exceeds alpha
-        vaR = -np.percentile(X, self.alpha * 100)
+        vaR = -np.nanpercentile(X, self.alpha * 100)
 
         #Get the average of losses that exceed the VaR threshold at each timestep
         vaR_per_step = np.array([
-            -np.percentile(X[:i+1], self.alpha * 100) for i in range(len(X))
+            -np.nanpercentile(X[:i+1], self.alpha * 100) for i in range(len(X))
         ])
 
         #Find out how much our loss exceeded the threshold at that timestep
