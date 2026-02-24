@@ -49,13 +49,20 @@ deploy_production:
         ln -s "$STOCKAI_DATA_DIR/stocks.db" "/home/runner/stocks.db" || true
       fi
     - test -f "$STOCKAI_DATA_DIR/stocks.db"
-    - chmod a+rwx "$STOCKAI_DATA_DIR" || true
-    - chmod a+rw "$STOCKAI_DATA_DIR"/stocks.db* || true
-    - chown 1000:1000 "$STOCKAI_DATA_DIR/stocks.db" || true
+    - |
+      echo "Ensuring DB directory is writable for container user..."
+      SELINUX_FLAG=""
+      if [ -e /sys/fs/selinux/enforce ] && [ "$(cat /sys/fs/selinux/enforce)" = "1" ]; then
+        SELINUX_FLAG=":Z"
+      fi
+      docker run --rm -v "$STOCKAI_DATA_DIR:/data${SELINUX_FLAG}" alpine sh -c "chmod -R a+rwX /data && (chown -R 1000:1000 /data || true)"
     - docker compose up -d --build --remove-orphans
     - |
       echo "Verifying DB mount inside container..."
       docker compose exec -T fastapi python -c "import os; from pathlib import Path; p=Path(os.getenv('DB_PATH','')); print('DB_PATH', p); print('exists', p.exists()); print('parent', p.parent, 'exists', p.parent.exists()); print('parent entries', [x.name for x in p.parent.iterdir()][:10])"
+    - |
+      echo "Verifying DB is writable inside container..."
+      docker compose exec -T fastapi python -c 'from connector import get_connection; conn=get_connection(readonly=False); conn.execute("CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)"); conn.execute("INSERT INTO app_settings(key,value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", ("__write_test","1")); conn.commit(); conn.execute("DELETE FROM app_settings WHERE key=?", ("__write_test",)); conn.commit(); conn.close(); print("write ok")'
     - echo "Ensuring SQLite indexes..."
     - docker compose exec -T fastapi python -m db_maintenance --ensure-indexes
     - docker compose ps
