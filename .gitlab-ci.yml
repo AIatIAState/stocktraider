@@ -24,15 +24,17 @@ deploy_production:
     - docker system prune -af --volumes
     - echo "Checking disk space..."
     - df -h /
-    - echo "Linking Database..."
-    - cp /home/runner/stocks.db ./data/stocks.db
-    - chmod a+rw ./data/stocks.db
-    - chown 1000:1000 ./data/stocks.db || true
-    - chmod a+rx ./data
-    - echo "Preparing SQLite WAL sidecar files..."
-    - rm -f ./data/stocks.db-wal ./data/stocks.db-shm || true
-    - touch ./data/stocks.db-wal ./data/stocks.db-shm
-    - chmod a+rw ./data/stocks.db-wal ./data/stocks.db-shm
+    - echo "Configuring persistent database mount..."
+    - export STOCKAI_DATA_DIR=/home/runner/stockai-data
+    - export SCHEDULED_UPDATE_BOOTSTRAP_ENABLED=true
+    - mkdir -p "$STOCKAI_DATA_DIR"
+    - |
+      if [ ! -f "$STOCKAI_DATA_DIR/stocks.db" ] && [ ! -f "/home/runner/stocks.db" ]; then
+        echo "ERROR: No stocks.db found in /home/runner or $STOCKAI_DATA_DIR"
+        ls -la /home/runner || true
+        ls -la "$STOCKAI_DATA_DIR" || true
+        exit 1
+      fi
     - echo "Deploying to production..."
     - docker compose down --remove-orphans || true
     # One-time migration: keep the DB in a dedicated data directory so container UID 1000 can write WAL/shm files.
@@ -43,7 +45,7 @@ deploy_production:
         fi
       done
       # Keep a stable path for the operator (optional convenience).
-      if [ ! -f "/home/runner/stocks.db" ] && [ ! -L "/home/runner/stocks.db" ]; then
+      if [ ! -f "/home/runner/stocks.db" ] && [ ! -L "/home/runner/stocks.db" ] && [ -f "$STOCKAI_DATA_DIR/stocks.db" ]; then
         ln -s "$STOCKAI_DATA_DIR/stocks.db" "/home/runner/stocks.db" || true
       fi
     - test -f "$STOCKAI_DATA_DIR/stocks.db"
