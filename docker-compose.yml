@@ -15,6 +15,5 @@ services:
       - DB_PATH=/data/stocks.db
       - SCHEDULED_UPDATE_ENABLED=true
       - SCHEDULED_UPDATE_TIMEZONE=America/Chicago
-      - SCHEDULED_UPDATE_BOOTSTRAP_ENABLED=${SCHEDULED_UPDATE_BOOTSTRAP_ENABLED:-false}
     volumes:
-      - ${STOCKAI_DATA_DIR:-./data}:/data
+      - ./data:/data

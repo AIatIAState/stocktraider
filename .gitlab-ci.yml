@@ -24,12 +24,15 @@ deploy_production:
     - docker system prune -af --volumes
     - echo "Checking disk space..."
     - df -h /
-    - echo "Configuring persistent database mount..."
-    - export STOCKAI_DATA_DIR=/home/runner
-    - export SCHEDULED_UPDATE_BOOTSTRAP_ENABLED=true
-    - test -f "/home/runner/stocks.db"
-    - chmod a+rw "/home/runner/stocks.db" || true
-    - chown 1000:1000 "/home/runner/stocks.db" || true
+    - echo "Linking Database..."
+    - cp /home/runner/stocks.db ./data/stocks.db
+    - chmod a+rw ./data/stocks.db
+    - chown 1000:1000 ./data/stocks.db || true
+    - chmod a+rx ./data
+    - echo "Preparing SQLite WAL sidecar files..."
+    - rm -f ./data/stocks.db-wal ./data/stocks.db-shm || true
+    - touch ./data/stocks.db-wal ./data/stocks.db-shm
+    - chmod a+rw ./data/stocks.db-wal ./data/stocks.db-shm
     - echo "Deploying to production..."
     - docker compose down --remove-orphans || true
     - docker compose up -d --build --remove-orphans
