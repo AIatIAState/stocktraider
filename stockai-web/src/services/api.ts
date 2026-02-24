@@ -66,6 +66,10 @@ export function setSchedulerEnabled(enabled: boolean) {
   })
 }
 
+export function fetchAdminDbInfo() {
+  return requestJson<DbInfo>('/api/admin/db-info')
+}
+
 export function fetchAdminUpdateStatus(jobId: string) {
   return requestJson<UpdateJob>(`/api/admin/update/${jobId}`)
 }
@@ -127,6 +131,21 @@ export type SchedulerStatus = {
   last_status: 'running' | 'completed' | 'failed' | null
   last_job_id: string | null
   last_error: string | null
+}
+
+export type DbInfo = {
+  db_path_env: string | null
+  db_path: string
+  db_path_resolved: string
+  exists: boolean
+  size_bytes: number | null
+  mtime: string | null
+  writable: boolean
+  daily_min_date: string | null
+  daily_max_date: string | null
+  bootstrap_enabled: boolean
+  bootstrap_start: string
+  bootstrap_has_data: boolean | null
 }
 
 export type WeeklyMover = {

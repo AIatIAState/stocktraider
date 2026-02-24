@@ -1,5 +1,6 @@
 import datetime
 import logging
+import os
 import sqlite3
 from datetime import timedelta
 
@@ -8,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from connector import get_connection
+from connector import DB_PATH, get_connection
 from naive_nn import NaiveNN
 from pattern_recognition import get_dtw_patterns
 from forecasting import get_forecast
@@ -32,7 +33,14 @@ from admin_jobs import (
     serialize_job,
     start_update_job,
 )
-from scheduled_updates import get_scheduler_status, set_scheduler_enabled, start_scheduler, stop_scheduler
+from scheduled_updates import (
+    DEFAULT_BOOTSTRAP_START,
+    ensure_history_backfill,
+    get_scheduler_status,
+    set_scheduler_enabled,
+    start_scheduler,
+    stop_scheduler,
+)
 app = FastAPI()
 LOGGER = logging.getLogger("uvicorn.error")
 
@@ -50,6 +58,7 @@ app.add_middleware(
 @app.on_event("startup")
 def start_background_jobs() -> None:
     start_scheduler()
+    ensure_history_backfill()
 
 
 @app.on_event("shutdown")
@@ -61,6 +70,22 @@ class SchedulerEnabledRequest(BaseModel):
     enabled: bool
 
 
+def _parse_env_bool(name: str, *, default: bool) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _int_date_to_iso(value: int | None) -> str | None:
+    if value is None:
+        return None
+    text = str(value)
+    if len(text) != 8:
+        return text
+    return f"{text[:4]}-{text[4:6]}-{text[6:]}"
+
+
 @app.get("/api/admin/scheduler")
 def admin_scheduler_status():
     return get_scheduler_status()
@@ -69,6 +94,81 @@ def admin_scheduler_status():
 @app.post("/api/admin/scheduler/enabled")
 def admin_scheduler_enabled(request: SchedulerEnabledRequest):
     return set_scheduler_enabled(request.enabled)
+
+
+@app.get("/api/admin/db-info")
+def admin_db_info():
+    resolved_path = str(DB_PATH.resolve())
+    exists = DB_PATH.exists()
+    info: dict[str, object] = {
+        "db_path_env": os.getenv("DB_PATH"),
+        "db_path": str(DB_PATH),
+        "db_path_resolved": resolved_path,
+        "exists": exists,
+        "size_bytes": None,
+        "mtime": None,
+        "writable": False,
+        "daily_min_date": None,
+        "daily_max_date": None,
+        "bootstrap_enabled": _parse_env_bool("SCHEDULED_UPDATE_BOOTSTRAP_ENABLED", default=False),
+        "bootstrap_start": os.getenv("SCHEDULED_UPDATE_BOOTSTRAP_START", DEFAULT_BOOTSTRAP_START),
+        "bootstrap_has_data": None,
+    }
+
+    if not exists:
+        return info
+
+    stat = DB_PATH.stat()
+    info["size_bytes"] = stat.st_size
+    info["mtime"] = datetime.datetime.fromtimestamp(stat.st_mtime, tz=datetime.timezone.utc).isoformat()
+    info["writable"] = os.access(DB_PATH, os.W_OK)
+
+    bootstrap_start = str(info["bootstrap_start"] or DEFAULT_BOOTSTRAP_START).strip() or DEFAULT_BOOTSTRAP_START
+    try:
+        bootstrap_date = datetime.date.fromisoformat(bootstrap_start)
+        bootstrap_int = int(bootstrap_date.strftime("%Y%m%d"))
+    except ValueError:
+        bootstrap_int = None
+
+    conn = get_connection(readonly=True)
+    try:
+        min_row = conn.execute(
+            """
+            SELECT date
+            FROM bars
+            WHERE timeframe = 'daily'
+            ORDER BY date ASC
+            LIMIT 1
+            """
+        ).fetchone()
+        max_row = conn.execute(
+            """
+            SELECT date
+            FROM bars
+            WHERE timeframe = 'daily'
+            ORDER BY date DESC
+            LIMIT 1
+            """
+        ).fetchone()
+        info["daily_min_date"] = _int_date_to_iso(min_row["date"] if min_row else None)
+        info["daily_max_date"] = _int_date_to_iso(max_row["date"] if max_row else None)
+
+        if bootstrap_int is not None:
+            exists_row = conn.execute(
+                """
+                SELECT 1
+                FROM bars
+                WHERE timeframe = 'daily'
+                  AND date = ?
+                LIMIT 1
+                """,
+                (bootstrap_int,),
+            ).fetchone()
+            info["bootstrap_has_data"] = bool(exists_row)
+    finally:
+        conn.close()
+
+    return info
 
 
 @app.exception_handler(sqlite3.Error)
