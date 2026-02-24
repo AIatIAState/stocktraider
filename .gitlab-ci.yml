@@ -25,14 +25,37 @@ deploy_production:
     - echo "Checking disk space..."
     - df -h /
     - echo "Configuring persistent database mount..."
-    - export STOCKAI_DATA_DIR=/home/runner
+    - export STOCKAI_DATA_DIR=/home/runner/stockai-data
     - export SCHEDULED_UPDATE_BOOTSTRAP_ENABLED=true
-    - test -f "/home/runner/stocks.db"
-    - chmod a+rw "/home/runner/stocks.db" || true
-    - chown 1000:1000 "/home/runner/stocks.db" || true
+    - mkdir -p "$STOCKAI_DATA_DIR"
+    - |
+      if [ ! -f "$STOCKAI_DATA_DIR/stocks.db" ] && [ ! -f "/home/runner/stocks.db" ]; then
+        echo "ERROR: No stocks.db found in /home/runner or $STOCKAI_DATA_DIR"
+        ls -la /home/runner || true
+        ls -la "$STOCKAI_DATA_DIR" || true
+        exit 1
+      fi
     - echo "Deploying to production..."
     - docker compose down --remove-orphans || true
+    # One-time migration: keep the DB in a dedicated data directory so container UID 1000 can write WAL/shm files.
+    - |
+      for suffix in "" "-wal" "-shm"; do
+        if [ -f "/home/runner/stocks.db${suffix}" ] && [ ! -f "$STOCKAI_DATA_DIR/stocks.db${suffix}" ]; then
+          mv "/home/runner/stocks.db${suffix}" "$STOCKAI_DATA_DIR/stocks.db${suffix}"
+        fi
+      done
+      # Keep a stable path for the operator (optional convenience).
+      if [ ! -f "/home/runner/stocks.db" ] && [ ! -L "/home/runner/stocks.db" ]; then
+        ln -s "$STOCKAI_DATA_DIR/stocks.db" "/home/runner/stocks.db" || true
+      fi
+    - test -f "$STOCKAI_DATA_DIR/stocks.db"
+    - chmod a+rwx "$STOCKAI_DATA_DIR" || true
+    - chmod a+rw "$STOCKAI_DATA_DIR"/stocks.db* || true
+    - chown 1000:1000 "$STOCKAI_DATA_DIR/stocks.db" || true
     - docker compose up -d --build --remove-orphans
+    - |
+      echo "Verifying DB mount inside container..."
+      docker compose exec -T fastapi python -c "import os; from pathlib import Path; p=Path(os.getenv('DB_PATH','')); print('DB_PATH', p); print('exists', p.exists()); print('parent', p.parent, 'exists', p.parent.exists()); print('parent entries', [x.name for x in p.parent.iterdir()][:10])"
     - echo "Ensuring SQLite indexes..."
     - docker compose exec -T fastapi python -m db_maintenance --ensure-indexes
     - docker compose ps
