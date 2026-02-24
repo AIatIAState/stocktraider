@@ -3,7 +3,7 @@ import logging
 import os
 import sqlite3
 import threading
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from connector import get_connection
@@ -18,7 +18,6 @@ STATE_LOCK = threading.Lock()
 DEFAULT_TIMEZONE = "America/Chicago"
 SCHEDULER_JOB_ID = "weekly_yfinance_refresh"
 STATE_KEY = "scheduler_state"
-DEFAULT_BOOTSTRAP_START = "2026-01-23"
 
 
 def _load_state() -> dict:
@@ -103,104 +102,6 @@ def _env_bool(name: str, *, default: bool) -> bool:
     if value is None:
         return default
     return value.strip().lower() in {"1", "true", "yes", "on"}
-
-
-def ensure_history_backfill() -> None:
-    if not _env_bool("SCHEDULED_UPDATE_BOOTSTRAP_ENABLED", default=False):
-        return
-
-    start_str = os.getenv("SCHEDULED_UPDATE_BOOTSTRAP_START", DEFAULT_BOOTSTRAP_START).strip() or DEFAULT_BOOTSTRAP_START
-    try:
-        start_date = date.fromisoformat(start_str)
-    except ValueError:
-        LOGGER.exception("Invalid SCHEDULED_UPDATE_BOOTSTRAP_START=%s (expected YYYY-MM-DD).", start_str)
-        return
-
-    check_date_int = int(start_date.strftime("%Y%m%d"))
-    try:
-        conn = get_connection(readonly=True)
-    except Exception:
-        LOGGER.exception("Bootstrap check failed (DB unavailable).")
-        return
-    try:
-        try:
-            row = conn.execute(
-                """
-                SELECT 1
-                FROM bars
-                WHERE timeframe = 'daily'
-                  AND date = ?
-                LIMIT 1
-                """,
-                (check_date_int,),
-            ).fetchone()
-        except sqlite3.Error:
-            LOGGER.exception("Bootstrap check query failed.")
-            return
-    finally:
-        conn.close()
-
-    if row:
-        LOGGER.info("Bootstrap check passed (found daily bars for %s).", start_date.isoformat())
-        return
-
-    tz_name = _timezone_name()
-    try:
-        tz = ZoneInfo(tz_name)
-    except ZoneInfoNotFoundError:
-        LOGGER.exception("Timezone %s not found; falling back to UTC", tz_name)
-        tz = ZoneInfo("UTC")
-    end_date = datetime.now(tz).date()
-    if end_date < start_date:
-        LOGGER.warning(
-            "Bootstrap check skipped: start_date %s is after today %s.",
-            start_date.isoformat(),
-            end_date.isoformat(),
-        )
-        return
-
-    def _on_finish(snapshot: dict) -> None:
-        with STATE_LOCK:
-            state = _load_state()
-            state["last_finished_at"] = snapshot.get("finished_at")
-            state["last_status"] = snapshot.get("status")
-            state["last_error"] = snapshot.get("error")
-            _write_state(state)
-
-    with JOB_LOCK:
-        prune_jobs()
-        running_job = find_running_job()
-        if running_job:
-            LOGGER.info(
-                "Bootstrap backfill skipped (job already running job_id=%s).",
-                running_job.get("id"),
-            )
-            return
-
-        job = start_update_job(
-            start_date=start_date,
-            end_date=end_date,
-            symbols=None,
-            limit=None,
-            job_meta={"trigger": "bootstrap"},
-            on_finish=_on_finish,
-        )
-        JOBS[job["id"]] = job
-
-    with STATE_LOCK:
-        state = _load_state()
-        state["last_job_id"] = job["id"]
-        state["last_started_at"] = job.get("started_at")
-        state["last_status"] = job.get("status")
-        state["last_error"] = None
-        _write_state(state)
-
-    LOGGER.info(
-        "Bootstrap backfill started (job_id=%s range=%s..%s).",
-        job["id"],
-        start_date.isoformat(),
-        end_date.isoformat(),
-    )
 
 
 def start_scheduler() -> None:
@@ -314,6 +215,7 @@ def run_scheduled_update() -> None:
     end_date = datetime.now(tz).date()
     start_date = end_date - timedelta(days=6)
 
+    job = None
     def _on_finish(snapshot: dict) -> None:
         with STATE_LOCK:
             state = _load_state()
