@@ -20,13 +20,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import AppAppBar from "../components/AppAppBar";
 import Footer from "../components/Footer";
 import {
-  fetchAdminDbInfo,
   fetchAdminUpdateJobs,
   fetchAdminUpdateStatus,
   fetchSchedulerStatus,
   runAdminUpdate,
   setSchedulerEnabled,
-  type DbInfo,
   type SchedulerStatus,
 } from "../services/api";
 import AppTheme from "../themes/AppTheme";
@@ -87,8 +85,6 @@ export default function AdminPage(props: { disableCustomTheme?: boolean }) {
   );
   const [schedulerError, setSchedulerError] = useState<string | null>(null);
   const [schedulerBusy, setSchedulerBusy] = useState(false);
-  const [dbInfo, setDbInfo] = useState<DbInfo | null>(null);
-  const [dbInfoError, setDbInfoError] = useState<string | null>(null);
   const [jobs, setJobs] = useState<
     {
       id: string;
@@ -171,18 +167,6 @@ export default function AdminPage(props: { disableCustomTheme?: boolean }) {
     }
   }, []);
 
-  const refreshDbInfo = useCallback(async () => {
-    try {
-      const response = await fetchAdminDbInfo();
-      setDbInfo(response);
-      setDbInfoError(null);
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Failed to load database info.";
-      setDbInfoError(message);
-    }
-  }, []);
-
   const handleSchedulerToggle = async (enabled: boolean) => {
     setSchedulerBusy(true);
     setSchedulerError(null);
@@ -250,14 +234,6 @@ export default function AdminPage(props: { disableCustomTheme?: boolean }) {
     }, 30000);
     return () => clearInterval(timer);
   }, [refreshScheduler]);
-
-  useEffect(() => {
-    refreshDbInfo();
-    const timer = setInterval(() => {
-      refreshDbInfo();
-    }, 30000);
-    return () => clearInterval(timer);
-  }, [refreshDbInfo]);
 
   const runningJobs = jobs.filter((job) => job.status === "running");
   const lastJob =
@@ -401,83 +377,6 @@ export default function AdminPage(props: { disableCustomTheme?: boolean }) {
                     ? `(${schedulerStatus.last_status})`
                     : ""}
                 </Typography>
-              </Stack>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent>
-              <Stack spacing={2}>
-                <Typography variant="h5">Database</Typography>
-                <Typography variant="body2" color="text.secondary">
-                  Confirms the backend is writing to the expected SQLite file and
-                  data range.
-                </Typography>
-
-                {dbInfoError ? <Alert severity="error">{dbInfoError}</Alert> : null}
-
-                {!dbInfo ? (
-                  <Alert severity="info">Loading database info...</Alert>
-                ) : !dbInfo.exists ? (
-                  <Alert severity="warning">
-                    Database file not found at {dbInfo.db_path_resolved}.
-                  </Alert>
-                ) : null}
-
-                {dbInfo ? (
-                  <Stack spacing={1}>
-                    <Typography variant="body2">
-                      Path: {dbInfo.db_path_resolved}
-                    </Typography>
-                    {dbInfo.db_path_env ? (
-                      <Typography variant="body2">
-                        DB_PATH env: {dbInfo.db_path_env}
-                      </Typography>
-                    ) : null}
-                    <Typography variant="body2">
-                      Writable: {dbInfo.writable ? "Yes" : "No"}
-                    </Typography>
-                    <Typography variant="body2">
-                      Size:{" "}
-                      {dbInfo.size_bytes != null
-                        ? `${(dbInfo.size_bytes / (1024 * 1024)).toFixed(1)} MB`
-                        : "N/A"}
-                    </Typography>
-                    <Typography variant="body2">
-                      Modified:{" "}
-                      {dbInfo.mtime
-                        ? formatInTimeZone(dbInfo.mtime, schedulerTz)
-                        : "N/A"}
-                    </Typography>
-                    <Typography variant="body2">
-                      Daily data:{" "}
-                      {dbInfo.daily_min_date && dbInfo.daily_max_date
-                        ? `${dbInfo.daily_min_date} to ${dbInfo.daily_max_date}`
-                        : "N/A"}
-                    </Typography>
-                    <Typography variant="body2">
-                      Bootstrap:{" "}
-                      {dbInfo.bootstrap_enabled ? "Enabled" : "Disabled"} (start{" "}
-                      {dbInfo.bootstrap_start})
-                    </Typography>
-                    <Typography variant="body2">
-                      Bootstrap date present:{" "}
-                      {dbInfo.bootstrap_has_data == null
-                        ? "N/A"
-                        : dbInfo.bootstrap_has_data
-                          ? "Yes"
-                          : "No"}
-                    </Typography>
-
-                    {dbInfo.bootstrap_enabled && dbInfo.bootstrap_has_data === false ? (
-                      <Alert severity="warning">
-                        Bootstrap start date ({dbInfo.bootstrap_start}) is missing
-                        from the database. If this is production, confirm the
-                        volume mount points at the persistent DB.
-                      </Alert>
-                    ) : null}
-                  </Stack>
-                ) : null}
               </Stack>
             </CardContent>
           </Card>
