@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 import torch
 
 from MultiHeadAttention import TimeAwareMultiHeadAttention
@@ -8,7 +9,7 @@ from ParellelSubStrategy import ParallelSubStrategy
 from PPO import PPO, Transition
 
 class RL_Investor:
-    def __init__(self, num_tickers, num_features=9, sequence_length=30, output_dim=64, num_heads=4, lambda_risk=.5, gpu=False):
+    def __init__(self, num_tickers, num_features=9, sequence_length=63, output_dim=256, num_heads=4, lambda_risk=.5, gpu=False):
         self.sequence_length = sequence_length
         self.num_tickers = num_tickers
         self.num_features = num_features
@@ -30,8 +31,7 @@ class RL_Investor:
                                                      output_dim=output_dim,
                                                      num_heads=num_heads,
                                                      head_dim=output_dim // num_heads,
-                                                     sequence_length=sequence_length,
-                                                     memory_length=50)
+                                                     sequence_length=sequence_length)
 
         if gpu:
             self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -41,23 +41,34 @@ class RL_Investor:
         print(f"Running on device: {self.device}")
         self.attention.to(self.device)
 
-    def _prepare_inputs(self, data):
+    def _prepare_inputs(self, data, reference_tickers=None):
         # Create tensor
-        tickers = sorted(data.keys())
+        tickers = reference_tickers if reference_tickers is not None else sorted(data.keys())
+
+        #Infer the number of trading days from any ticker
+        available = next(iter(data.values()))
+        num_days = len(available)
+
+
         frames = []
         for ticker in tickers:
-            df = data[ticker]
+            if ticker in data:
+                df = data[ticker].copy()
+                df = df.ffill()
+                df = df.bfill()
+                df = df.fillna(0)
 
-            df = df.ffill()
-            df = df.bfill()
-            df = df.fillna(0)
 
-            # Clip extreme values that could destabilise training
-            df = df.clip(
-                lower=df.quantile(0.001),
-                upper=df.quantile(0.999),
-                axis=1
-            )
+                # Clip extreme values that could destabilise training
+                df = df.clip(
+                    lower=df.quantile(0.001),
+                    upper=df.quantile(0.999),
+                    axis=1
+                )
+            else:
+                #Pad with zeros if it doesn't exist
+                df = pd.DataFrame(np.zeros((num_days, self.num_features)), index=available.index, columns=available.columns)
+
             frames.append(df)
         tensor = np.stack(frames, axis=1)
         return torch.tensor(tensor, dtype=torch.float32).to(self.device)
@@ -77,15 +88,18 @@ class RL_Investor:
 
         return torch.cat([data, tf], dim=-1)
 
-    def train(self, training_data, training_opens, index_opens, index_closes, num_episodes=10, rollout_length=256):
+    def train(self, training_data, training_opens, index_opens, index_closes, num_episodes=50, rollout_length=256):
 
         tickers = sorted(training_data.keys())
 
-        ppo = PPO(input_dim=self.ppo_input_dim, num_tickers=self.num_tickers, device=self.device, epochs=20)
+        ppo = PPO(input_dim=self.ppo_input_dim, num_tickers=self.num_tickers, device=self.device, epochs=8)
 
         #Rebuilt optimizer to include attention parameters in gradient updates
         all_params = list(ppo.actor_critic.parameters()) + list(self.attention.parameters())
-        ppo.optimizer = torch.optim.Adam(all_params, lr=3e-4)
+        ppo.optimizer = torch.optim.Adam([
+            {"params": ppo.actor_critic.parameters(), "lr": 3e-4},
+            {"params": self.attention.parameters(), 'lr': 1e-4}
+        ], lr=3e-4)
         env = PortfolioEnvironment(training_data, training_opens, tickers=tickers, lambda_risk=self.lambda_risk)
         parallel = ParallelSubStrategy(index_closes, index_opens)
 
@@ -176,23 +190,26 @@ class RL_Investor:
             print(f"Episode {episode + 1} completed with total reward: {ep_reward:.2f} and final portfolio value: {env.portfolio_value:.2f}")
 
         self.ppo = ppo
+        self.training_tickers = tickers
 
 
     def predict(self, testing_data, testing_opens, index_opens, index_closes):
         if not hasattr(self, 'ppo'):
             raise ValueError("Model must be trained before prediction")
 
-        tickers = sorted(testing_data.keys())
+        #Only work on tickers the model was trained on
+        tickers = self.training_tickers
 
         env = PortfolioEnvironment(testing_data, testing_opens, tickers=tickers, lambda_risk=self.lambda_risk)
         parallel = ParallelSubStrategy(index_closes, index_opens)
 
-        testing_tensor = self._prepare_inputs(testing_data)
+        testing_tensor = self._prepare_inputs(testing_data, reference_tickers=tickers)
         x = self._attach_time_features(testing_tensor)
 
         state = env.reset()
-        env.reset()
         parallel.reset()
+
+        self.attention.eval()
         done = False
         results = []
 

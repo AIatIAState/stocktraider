@@ -10,7 +10,7 @@ class TimeFeatureEmbedding:
         pos = np.arange(self.sequence_length)
 
         # Create a range of frequency bands
-        output_range = np.arange(0, self.output_dim * 5, 5)
+        output_range = np.arange(0, self.output_dim)
 
         # Find the frequency where the sinusoids will oscilate.
         # Added 10000 base to spread frequencies across a wide range so both long-range and short-range differences are captured

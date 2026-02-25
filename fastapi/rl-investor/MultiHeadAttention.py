@@ -4,13 +4,12 @@ from TimeFeatureEmbedding import TimeFeatureEmbedding
 import torch.nn.functional as F
 
 class TimeAwareMultiHeadAttention(nn.Module):
-    def __init__(self, input_dim, output_dim, num_heads, head_dim, sequence_length, memory_length):
+    def __init__(self, input_dim, output_dim, num_heads, head_dim, sequence_length):
         super().__init__()
         self.num_heads = num_heads
         self.head_dim = head_dim
         self.output_dim = output_dim
         self.sequence_length = sequence_length
-        self.memory_length = memory_length
         self.input_dim = input_dim
 
         #Create learnable bias parameters: (U shifts by content, Y shifts by time)
@@ -33,12 +32,12 @@ class TimeAwareMultiHeadAttention(nn.Module):
         #Single projection for Q, K, F, V
         self.qkfv_projection = nn.Linear(input_dim, 4 * num_heads * head_dim, bias=False)
 
-        #Instance normalization
-        self.instance_norm = nn.InstanceNorm1d(input_dim, affine=True)
+        #Layer normalization
+        self.layer_norm = nn.LayerNorm(input_dim)
 
         #Position encoding for time features
         self.time_embedding = TimeFeatureEmbedding(output_dim=num_heads * head_dim,
-                                                   sequence_length =sequence_length + memory_length)
+                                                   sequence_length =sequence_length)
 
         #precompute time features and register as buffer since they are fixed and not learnable parameters
         tf = self.time_embedding.forward()
@@ -57,20 +56,11 @@ class TimeAwareMultiHeadAttention(nn.Module):
         x = x_pad[:, 1:, :, :].reshape(B, T, T_tau, H)
         return x
 
-    def forward(self, x, memory=None):
+    def forward(self, x):
         batch_size, trading_days, _ = x.shape
-        tau = self.memory_length
-        total_len = trading_days + tau
-
-        #Concatenate memory with current input for attention calculations
-        if memory is None:
-            memory = torch.zeros(batch_size, tau, self.input_dim, device=x.device)
-
-        x_combined = torch.cat([memory, x], dim=1)
 
         #Normalize the instance
-        x_norm = self.instance_norm(x_combined.permute(0, 2, 1)).permute(0, 2, 1)
-
+        x_norm = self.layer_norm(x)
         x_norm = torch.nan_to_num(x_norm, nan=0.0, posinf=0.0, neginf=0.0)
 
         #Project to Q (queries), K (keys), F (time features), V (values)
@@ -79,7 +69,7 @@ class TimeAwareMultiHeadAttention(nn.Module):
 
         #Reshape to create multiple attention heads (ex. (1,40,64) -> (1,40,4,16))
         def reshape(t):
-            t = t.reshape(batch_size, trading_days + tau, self.num_heads, self.head_dim)
+            t = t.reshape(batch_size, trading_days, self.num_heads, self.head_dim)
             return t
 
         Q = reshape(Q)
@@ -99,21 +89,21 @@ class TimeAwareMultiHeadAttention(nn.Module):
         Qm = F.softmax(Q * Mm, dim=2)
 
         #Apply the weekly and monthly masks to the projected time features to get the time-based attention scores
-        if total_len > self.time_features.shape[0]:
+        if trading_days > self.time_features.shape[0]:
             full_embedding = TimeFeatureEmbedding(
                 output_dim=self.num_heads * self.head_dim,
-                sequence_length=total_len
+                sequence_length=trading_days
             )
             tf = torch.tensor(
                 full_embedding.forward(), dtype=torch.float32, device=x.device
             )
         else:
-            tf = self.time_features[:total_len]  # (total_len, time_feature_dim)
+            tf = self.time_features[:trading_days]  # (total_len, time_feature_dim)
 
         Rtime = self.position_projection(tf)  # (total_len, num_heads * head_dim)
 
         #reshape to match the dimensions for attention calculations (trading_days + tau, num_heads, head_dim)
-        Rtime = Rtime.reshape(total_len, self.num_heads, self.head_dim)
+        Rtime = Rtime.reshape(trading_days, self.num_heads, self.head_dim)
 
         #Broadcast Rtime across the batch dimension since time embeddings are the same for all samples in the batch
         Rtime = Rtime.unsqueeze(0).expand(batch_size, -1, -1, -1)
@@ -122,18 +112,16 @@ class TimeAwareMultiHeadAttention(nn.Module):
 
         #Compute content score taking current sequence queries, add the learnable content bias, and dot product with keys to get the content-based attention scores
         #Finds how relevant each past timestep is to the current day based purely on the content features, without considering time
-        Q_content = Q[:, tau:] + self.U
-        Sc = torch.einsum('bthd,bshd->btsh', Q_content, K)
+        Sc = torch.einsum('bthd,bshd->btsh', Q + self.U, K)
 
         #Calculate weekly and monthly attention scores by taking the dot product of the masked queries with the projected time features, allowing these heads to focus on temporal patterns in the data
         #Finds if the current day matches a weekly or monthly pattern
-        Sw = torch.einsum('bthd,bshd->btsh', Qw[:, tau:], F_feat)
-        Sm = torch.einsum('bthd,bshd->btsh', Qm[:, tau:], F_feat)
+        Sw = torch.einsum('bthd,bshd->btsh', Qw, F_feat)
+        Sm = torch.einsum('bthd,bshd->btsh', Qm, F_feat)
 
         #Compute positional score by taking the dot product of the content queries with the projected time features
         # This allows the model to learn to attend to specific positions in the sequence based on temporal patterns, and then apply the relative shift to convert from absolute to relative positional attention
-        Q_pos = Q[:, tau:] + self.Y
-        Sp = torch.einsum('bthd,bshd->btsh', Q_pos, Rtime)
+        Sp = torch.einsum('bthd,bshd->btsh', Q + self.Y, Rtime)
         Sp = self._relative_shift(Sp)
 
         #Combine the attention scores using the learnable weights and apply to V
@@ -151,9 +139,7 @@ class TimeAwareMultiHeadAttention(nn.Module):
         S = torch.nan_to_num(S, nan=0.0)
 
         #Causal mask, prevents model from attending to future timesteps by masking out attention scores for any future positions beyond the current day
-        Mseq = torch.ones(trading_days, trading_days + tau, device=x.device)
-        for i in range(trading_days):
-            Mseq[i, i + tau + 1:] = 0.0
+        Mseq = torch.ones(trading_days, trading_days, device=x.device)
         Mseq = Mseq.unsqueeze(0).unsqueeze(-1)
 
         S_masked = S * Mseq

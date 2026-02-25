@@ -40,7 +40,7 @@ class ActorCritic(nn.Module):
         )
 
         #Learnable log standard deviation for action distribution (one per ticker)
-        self.log_std = nn.Parameter(torch.zeros(num_tickers))
+        self.log_std = nn.Parameter(torch.full((num_tickers,), -2.0))
 
     def forward(self, x):
 

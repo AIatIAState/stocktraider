@@ -11,6 +11,9 @@ class RiskModule:
     def update(self, return_value):
         self.return_history.append(return_value)
 
+        if len(self.return_history) > 252:
+            self.return_history = self.return_history[-252:]
+
         if len(self.return_history) < 2:
             self.previous_icvar = 0.0
             return 0.0
@@ -20,13 +23,8 @@ class RiskModule:
         #Find the minimum value of the cumulative distribution where the probability exceeds alpha
         vaR = -np.nanpercentile(X, self.alpha * 100)
 
-        #Get the average of losses that exceed the VaR threshold at each timestep
-        vaR_per_step = np.array([
-            -np.nanpercentile(X[:i+1], self.alpha * 100) for i in range(len(X))
-        ])
-
         #Find out how much our loss exceeded the threshold at that timestep
-        excess_loss = np.maximum(-X - vaR_per_step, 0)
+        excess_loss = np.maximum(-X - vaR, 0)
 
         #Calculate the CVaR (Conditional Value at Risk) showing how bad the risk gets on average when we exceed the VaR threshold with alpha scaling
         cvaR = vaR + (1 / (self.alpha * len(X))) * np.sum(excess_loss)

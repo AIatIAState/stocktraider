@@ -81,7 +81,7 @@ dow_tickers = [
     ]
 ]
 
-def simulate(gpu=False, look_back_period=3, episodes=100, index="dow", save_dir="results"):
+def simulate(gpu=False, look_back_period=3, episodes=50, index="dow", save_dir="results"):
 
     all_results = []
     all_metrics = []
@@ -149,11 +149,10 @@ def simulate(gpu=False, look_back_period=3, episodes=100, index="dow", save_dir=
     return all_results, all_metrics
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--index", type=str, default="sp500")
+    parser.add_argument("--index", type=str, default="nasdaq")
     parser.add_argument("--lookback", type=int, default=3)
-    parser.add_argument("--episodes", type=int, default=10)
+    parser.add_argument("--episodes", type=int, default=50)
     parser.add_argument("--gpu", type=bool, default=True)
-    parser.add_argument("--savedir", type=str, default="")
     args = parser.parse_args()
-
-    simulate(args.gpu, look_back_period=args.lookback, episodes=args.episodes, index=args.index, save_dir = "results-" + args.savedir)
+    save_directory = "results-" + args.index + "-" + str(args.episodes) + "-episodes-" + str(args.lookback) + "-lookback"
+    simulate(args.gpu, look_back_period=args.lookback, episodes=args.episodes, index=args.index, save_dir = save_directory)

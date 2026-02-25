@@ -74,6 +74,13 @@ class PortfolioEnvironment:
         sells = np.zeros(self.num_stocks)
         buys = np.zeros(self.num_stocks)
 
+        valid_prices = np.where(open_prices > 1e-6, open_prices, 0.0)
+        action = np.where(valid_prices > 1e-6, action, 0.0)
+        action_sum = action.sum()
+        if action_sum > 1e-8:
+            action = action / action_sum
+
+
         # Convert portfolio weights to target share counts
         target_shares_counts = np.array([
             (action[i] * self.portfolio_value) / max(open_prices[i], 1e-8)
@@ -117,10 +124,12 @@ class PortfolioEnvironment:
 
         # Reward function calculating the percentage change in total assets considering risk
         X_t = delta_P / P_prev
-        X_t = X_t if np.isfinite(X_t) else 0.0
+        X_t = float(X_t) if np.isfinite(X_t) else 0.0
 
         icvaR = self.risk_module.update(X_t)
-        return delta_P - self.lambda_risk * icvaR
+
+        #Percentage return
+        return X_t - self.lambda_risk * icvaR
 
     def step(self, action, trend_index=1.0, short_limit=1e4, buy_limit=1.0):
 
