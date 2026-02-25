@@ -32,27 +32,12 @@ from admin_jobs import (
     prune_jobs,
     serialize_job,
     start_update_job,
+    parse_env_bool,
+    int_date_to_iso,
 )
 from scheduled_updates import get_scheduler_status, set_scheduler_enabled, start_scheduler, stop_scheduler
 
 DEFAULT_BOOTSTRAP_START = "2020-01-01"
-
-
-def _parse_env_bool(name: str, *, default: bool = False) -> bool:
-    val = os.getenv(name, "").strip().lower()
-    if val in ("1", "true", "yes", "on"):
-        return True
-    if val in ("0", "false", "no", "off"):
-        return False
-    return default
-
-
-def _int_date_to_iso(date_int: int | None) -> str | None:
-    if date_int is None:
-        return None
-    s = str(date_int)
-    return f"{s[:4]}-{s[4:6]}-{s[6:]}"
-
 
 app = FastAPI()
 LOGGER = logging.getLogger("uvicorn.error")
@@ -96,7 +81,7 @@ def admin_db_info():
         "writable": False,
         "daily_min_date": None,
         "daily_max_date": None,
-        "bootstrap_enabled": _parse_env_bool("SCHEDULED_UPDATE_BOOTSTRAP_ENABLED", default=False),
+        "bootstrap_enabled": parse_env_bool("SCHEDULED_UPDATE_BOOTSTRAP_ENABLED", default=False),
         "bootstrap_start": os.getenv("SCHEDULED_UPDATE_BOOTSTRAP_START", DEFAULT_BOOTSTRAP_START),
         "bootstrap_has_data": None,
     }
@@ -136,8 +121,8 @@ def admin_db_info():
             LIMIT 1
             """
         ).fetchone()
-        info["daily_min_date"] = _int_date_to_iso(min_row["date"] if min_row else None)
-        info["daily_max_date"] = _int_date_to_iso(max_row["date"] if max_row else None)
+        info["daily_min_date"] = int_date_to_iso(min_row["date"] if min_row else None)
+        info["daily_max_date"] = int_date_to_iso(max_row["date"] if max_row else None)
 
         if bootstrap_int is not None:
             exists_row = conn.execute(

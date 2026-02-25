@@ -5,6 +5,7 @@ from collections.abc import Callable
 from datetime import date, datetime, timezone
 from typing import Any
 from uuid import uuid4
+import os
 
 from fastapi import HTTPException
 from pydantic import BaseModel, Field
@@ -24,6 +25,22 @@ class AdminUpdateRequest(BaseModel):
     end: str = Field(..., description="YYYY-MM-DD")
     symbols: list[str] | None = None
     limit: int | None = None
+
+
+def parse_env_bool(name: str, *, default: bool = False) -> bool:
+    val = os.getenv(name, "").strip().lower()
+    if val in ("1", "true", "yes", "on"):
+        return True
+    if val in ("0", "false", "no", "off"):
+        return False
+    return default
+
+
+def int_date_to_iso(date_int: int | None) -> str | None:
+    if date_int is None:
+        return None
+    s = str(date_int)
+    return f"{s[:4]}-{s[4:6]}-{s[6:]}"
 
 
 def parse_iso_date(value: str, field_name: str) -> date:
