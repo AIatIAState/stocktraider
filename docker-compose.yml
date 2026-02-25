@@ -16,4 +16,4 @@ services:
       - SCHEDULED_UPDATE_ENABLED=true
       - SCHEDULED_UPDATE_TIMEZONE=America/Chicago
     volumes:
-      - ./data:/data
+      - ${STOCKAI_DATA_DIR:-./data}:/data

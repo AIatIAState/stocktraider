@@ -1,5 +1,6 @@
 import datetime
 import logging
+import os
 import sqlite3
 from datetime import timedelta
 
@@ -8,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from connector import get_connection
+from connector import DB_PATH, get_connection
 from naive_nn import NaiveNN
 from pattern_recognition import get_dtw_patterns
 from forecasting import get_forecast
@@ -33,6 +34,26 @@ from admin_jobs import (
     start_update_job,
 )
 from scheduled_updates import get_scheduler_status, set_scheduler_enabled, start_scheduler, stop_scheduler
+
+DEFAULT_BOOTSTRAP_START = "2020-01-01"
+
+
+def _parse_env_bool(name: str, *, default: bool = False) -> bool:
+    val = os.getenv(name, "").strip().lower()
+    if val in ("1", "true", "yes", "on"):
+        return True
+    if val in ("0", "false", "no", "off"):
+        return False
+    return default
+
+
+def _int_date_to_iso(date_int: int | None) -> str | None:
+    if date_int is None:
+        return None
+    s = str(date_int)
+    return f"{s[:4]}-{s[4:6]}-{s[6:]}"
+
+
 app = FastAPI()
 LOGGER = logging.getLogger("uvicorn.error")
 
@@ -59,6 +80,81 @@ def stop_background_jobs() -> None:
 
 class SchedulerEnabledRequest(BaseModel):
     enabled: bool
+
+
+@app.get("/api/admin/db-info")
+def admin_db_info():
+    resolved_path = str(DB_PATH.resolve())
+    exists = DB_PATH.exists()
+    info: dict[str, object] = {
+        "db_path_env": os.getenv("DB_PATH"),
+        "db_path": str(DB_PATH),
+        "db_path_resolved": resolved_path,
+        "exists": exists,
+        "size_bytes": None,
+        "mtime": None,
+        "writable": False,
+        "daily_min_date": None,
+        "daily_max_date": None,
+        "bootstrap_enabled": _parse_env_bool("SCHEDULED_UPDATE_BOOTSTRAP_ENABLED", default=False),
+        "bootstrap_start": os.getenv("SCHEDULED_UPDATE_BOOTSTRAP_START", DEFAULT_BOOTSTRAP_START),
+        "bootstrap_has_data": None,
+    }
+
+    if not exists:
+        return info
+
+    stat = DB_PATH.stat()
+    info["size_bytes"] = stat.st_size
+    info["mtime"] = datetime.datetime.fromtimestamp(stat.st_mtime, tz=datetime.timezone.utc).isoformat()
+    info["writable"] = os.access(DB_PATH, os.W_OK)
+
+    bootstrap_start = str(info["bootstrap_start"] or DEFAULT_BOOTSTRAP_START).strip() or DEFAULT_BOOTSTRAP_START
+    try:
+        bootstrap_date = datetime.date.fromisoformat(bootstrap_start)
+        bootstrap_int = int(bootstrap_date.strftime("%Y%m%d"))
+    except ValueError:
+        bootstrap_int = None
+
+    conn = get_connection(readonly=True)
+    try:
+        min_row = conn.execute(
+            """
+            SELECT date
+            FROM bars
+            WHERE timeframe = 'daily'
+            ORDER BY date ASC
+            LIMIT 1
+            """
+        ).fetchone()
+        max_row = conn.execute(
+            """
+            SELECT date
+            FROM bars
+            WHERE timeframe = 'daily'
+            ORDER BY date DESC
+            LIMIT 1
+            """
+        ).fetchone()
+        info["daily_min_date"] = _int_date_to_iso(min_row["date"] if min_row else None)
+        info["daily_max_date"] = _int_date_to_iso(max_row["date"] if max_row else None)
+
+        if bootstrap_int is not None:
+            exists_row = conn.execute(
+                """
+                SELECT 1
+                FROM bars
+                WHERE timeframe = 'daily'
+                  AND date = ?
+                LIMIT 1
+                """,
+                (bootstrap_int,),
+            ).fetchone()
+            info["bootstrap_has_data"] = bool(exists_row)
+    finally:
+        conn.close()
+
+    return info
 
 
 @app.get("/api/admin/scheduler")
