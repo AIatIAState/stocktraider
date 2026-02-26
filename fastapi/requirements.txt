@@ -17,3 +17,6 @@ pandas_ta
 numpy
 bs4
 lxml
+
+apscheduler
+tzdata
