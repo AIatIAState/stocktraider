@@ -25,7 +25,9 @@ deploy_production:
     - echo "Checking disk space..."
     - df -h /
     - echo "Linking Database..."
-    - cp /home/runner/stocks.db ./data/stocks.db
+    - ln -sf /home/runner/stocks.db ./data/stocks.db
+    - ln -sf /home/runner/stocks.db-wal ./data/stocks.db-wal || true
+    - ln -sf /home/runner/stocks.db-shm ./data/stocks.db-shm  || true
     - chmod a+rw ./data/stocks.db
     - chown 1000:1000 ./data/stocks.db || true
     - chmod a+rx ./data
