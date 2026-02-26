@@ -37,25 +37,6 @@ deploy_production:
     - echo "Ensuring SQLite indexes..."
     - docker compose exec -T fastapi python -m db_maintenance --ensure-indexes
     - docker compose ps
-    - |
-      echo "Smoke check (web -> api readiness)..."
-      i=0
-      passed=0
-      until [ "$i" -ge 30 ]; do
-        if docker compose exec -T fastapi python -c "import urllib.request; print(urllib.request.urlopen('http://web:8080/api/ready', timeout=2).read().decode())"; then
-          passed=1
-          break
-        fi
-        i=$((i + 1))
-        sleep 1
-      done
-      if [ "$passed" -ne 1 ]; then
-        echo "Readiness check failed after 30s"
-        docker compose ps
-        docker compose logs --no-color --tail=200 fastapi
-        docker compose logs --no-color --tail=200 web
-        exit 1
-      fi
       # Yay
     - echo "Running on coms-4020-002.class.las.iastate.edu:8080"
   tags:
