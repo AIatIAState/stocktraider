@@ -1,7 +1,9 @@
 import logging
 import threading
 import time
+from collections.abc import Callable
 from datetime import date, datetime, timezone
+from typing import Any
 from uuid import uuid4
 
 from fastapi import HTTPException
@@ -56,7 +58,15 @@ def find_running_job() -> dict | None:
     return None
 
 
-def start_update_job(*, start_date: date, end_date: date, symbols: list[str] | None, limit: int | None) -> dict:
+def start_update_job(
+    *,
+    start_date: date,
+    end_date: date,
+    symbols: list[str] | None,
+    limit: int | None,
+    job_meta: dict[str, Any] | None = None,
+    on_finish: Callable[[dict], None] | None = None,
+) -> dict:
     job_id = uuid4().hex
     started_at = now_iso()
     job = {
@@ -71,8 +81,11 @@ def start_update_job(*, start_date: date, end_date: date, symbols: list[str] | N
         "end": end_date.isoformat(),
         "created_at_ts": time.time(),
     }
+    if job_meta:
+        job.update(job_meta)
 
     def _run():
+        snapshot = None
         try:
             summary = update_daily_bars(
                 start_date=start_date,
@@ -85,6 +98,7 @@ def start_update_job(*, start_date: date, end_date: date, symbols: list[str] | N
                 job["status"] = "completed"
                 job["summary"] = summary
                 job["finished_at"] = finished_at
+                snapshot = job.copy()
         except Exception as exc:
             LOGGER.exception("Admin update job failed")
             finished_at = now_iso()
@@ -92,6 +106,13 @@ def start_update_job(*, start_date: date, end_date: date, symbols: list[str] | N
                 job["status"] = "failed"
                 job["error"] = str(exc)
                 job["finished_at"] = finished_at
+                snapshot = job.copy()
+        finally:
+            if on_finish:
+                try:
+                    on_finish(snapshot or job.copy())
+                except Exception:
+                    LOGGER.exception("Admin update job finish callback failed")
 
     # Run the update in a background thread to avoid blocking the request thread.
     thread = threading.Thread(target=_run, daemon=True)

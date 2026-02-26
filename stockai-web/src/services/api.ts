@@ -55,6 +55,17 @@ export function runAdminUpdate(params: {
   })
 }
 
+export function fetchSchedulerStatus() {
+  return requestJson<SchedulerStatus>('/api/admin/scheduler')
+}
+
+export function setSchedulerEnabled(enabled: boolean) {
+  return requestJson<SchedulerStatus>('/api/admin/scheduler/enabled', {
+    method: 'POST',
+    body: JSON.stringify({ enabled }),
+  })
+}
+
 export function fetchAdminUpdateStatus(jobId: string) {
   return requestJson<UpdateJob>(`/api/admin/update/${jobId}`)
 }
@@ -102,6 +113,20 @@ export type UpdateJob = {
   error: string | null
   start: string
   end: string
+}
+
+export type SchedulerStatus = {
+  available: boolean
+  enabled: boolean
+  running: boolean
+  timezone: string
+  schedule: string
+  next_run_time: string | null
+  last_started_at: string | null
+  last_finished_at: string | null
+  last_status: 'running' | 'completed' | 'failed' | null
+  last_job_id: string | null
+  last_error: string | null
 }
 
 export type WeeklyMover = {
