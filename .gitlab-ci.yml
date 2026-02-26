@@ -25,7 +25,7 @@ deploy_production:
     - echo "Checking disk space..."
     - df -h /
     - echo "Linking Database..."
-    - export DB_DIR=/home/runner/stock-ai
+    - export DB_DIR=/home/runner/stockai-data
     - ls -la $DB_DIR/stocks.db  # verify it's there
     - chmod a+rw $DB_DIR/stocks.db
     - chmod a+rw $DB_DIR/stocks.db-wal $DB_DIR/stocks.db-shm 2>/dev/null || true
