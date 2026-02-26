@@ -1,5 +1,8 @@
 import os
 from datetime import date, timedelta
+
+import pandas as pd
+
 from rl_features import preprocess_data, get_opens, get_index
 from RLInvestor import RL_Investor
 from Metrics import compute_metrics, plot_portfolio_performance, plot_metrics_table
@@ -145,6 +148,11 @@ def simulate(gpu=False, look_back_period=3, episodes=50, index="dow", save_dir="
         dataset_labels,
         save_path=f"{save_dir}/metrics_table.png"
     )
+
+    all_results_df = pd.DataFrame(all_results)
+    all_metrics_df = pd.DataFrame(all_metrics)
+    all_results_df.to_csv(f'{save_dir}/all_results.csv')
+    all_metrics_df.to_csv(f'{save_dir}/all_metrics.csv')
 
     return all_results, all_metrics
 if __name__ == "__main__":
