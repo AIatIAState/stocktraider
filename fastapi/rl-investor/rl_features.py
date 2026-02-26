@@ -45,7 +45,7 @@ def preprocess_data(start_date, end_date, tickers):
     indicators = compute_indicators(df_close, df_high, df_low, df_volume)
 
     found_tickers = []
-    for ticker in indicators:
+    for ticker in list(indicators.keys()):
         df = indicators[ticker]
 
         #Remove empty tickers or tickers with more than 5% of their stock history missing

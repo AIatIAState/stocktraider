@@ -15,7 +15,14 @@ class PortfolioEnvironment:
 
         self.risk_module = RiskModule(alpha=alpha)
 
-        self.trading_days = sorted(list(indicators[self.tickers[0]].index))
+        for ticker in self.tickers:
+            if ticker in indicators:
+                self.trading_days = sorted(list(indicators[ticker].index))
+                break
+
+        if self.trading_days is None:
+            raise ValueError("No valid tickers found in indicators — cannot determine trading days")
+
         self.num_days = len(self.trading_days)
         self.reset()
 
