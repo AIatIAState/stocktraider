@@ -14,5 +14,11 @@ requests
 lxml
 
 pytorch-lightning>=2.2.0
+pandas
+pandas_ta
+numpy
+bs4
+lxml
+
 apscheduler
 tzdata
