@@ -43,6 +43,14 @@ export function fetchWeeklyMovers(direction: 'top' | 'bottom') {
   return requestJson<WeeklyMoversBatch>(`/api/weekly-movers?${qs.toString()}`)
 }
 
+export function fetchWeeklyInsights() {
+  return requestJson<WeeklyInsightsResponse>('/api/weekly-insights')
+}
+
+export function fetchWeeklyAlerts() {
+  return requestJson<WeeklyAlertsResponse>('/api/weekly-alerts')
+}
+
 export function runAdminUpdate(params: {
   start: string
   end: string
@@ -154,6 +162,44 @@ export type WeeklyMover = {
   last_close: number
   pct_change: number
   series?: number[]
+}
+
+export type MarketEvent = {
+  title: string
+  date: string | null
+  source: string | null
+  url?: string | null
+}
+
+export type WeeklyAlert = {
+  symbol: string
+  first_close: number
+  last_close: number
+  pct_change: number
+  source: 'core' | 'top' | 'bottom'
+}
+
+export type WeeklyAlertFeatured = WeeklyAlert & {
+  series: number[]
+}
+
+export type WeeklyInsightsResponse = {
+  start: string
+  end: string
+  market_insights: string[]
+  event_impacts: string[]
+  events: MarketEvent[]
+  note: string | null
+  events_note: string | null
+  model: string | null
+  sources: string[]
+}
+
+export type WeeklyAlertsResponse = {
+  start: string
+  end: string
+  alerts: WeeklyAlert[]
+  featured: WeeklyAlertFeatured[]
 }
 
 export type WeeklyMoversBatch = {
