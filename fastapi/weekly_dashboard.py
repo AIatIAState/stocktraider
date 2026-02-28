@@ -266,6 +266,7 @@ def _load_events(start_date, end_date) -> tuple[list[dict], str | None, list[str
                     "date": article.get("publishedAt"),
                     "source": (article.get("source") or {}).get("name"),
                     "url": article.get("url"),
+                    "image_url": article.get("urlToImage"),
                 }
             )
         events = [event for event in events if event["title"]]

@@ -169,6 +169,7 @@ export type MarketEvent = {
   date: string | null
   source: string | null
   url?: string | null
+  image_url?: string | null
 }
 
 export type WeeklyAlert = {
