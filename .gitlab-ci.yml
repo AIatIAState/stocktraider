@@ -25,44 +25,14 @@ deploy_production:
     - echo "Checking disk space..."
     - df -h /
     - echo "Configuring persistent database mount..."
-    - export STOCKAI_DATA_DIR=/home/runner/stockai-data
+    - export STOCKAI_DATA_DIR=/home/runner
     - export SCHEDULED_UPDATE_BOOTSTRAP_ENABLED=true
-    - mkdir -p "$STOCKAI_DATA_DIR"
-    - |
-      if [ ! -f "$STOCKAI_DATA_DIR/stocks.db" ] && [ ! -f "/home/runner/stocks.db" ]; then
-        echo "ERROR: No stocks.db found in /home/runner or $STOCKAI_DATA_DIR"
-        ls -la /home/runner || true
-        ls -la "$STOCKAI_DATA_DIR" || true
-        exit 1
-      fi
+    - test -f "/home/runner/stocks.db"
+    - chmod a+rw "/home/runner/stocks.db" || true
+    - chown 1000:1000 "/home/runner/stocks.db" || true
     - echo "Deploying to production..."
     - docker compose down --remove-orphans || true
-    # One-time migration: keep the DB in a dedicated data directory so container UID 1000 can write WAL/shm files.
-    - |
-      for suffix in "" "-wal" "-shm"; do
-        if [ -f "/home/runner/stocks.db${suffix}" ] && [ ! -f "$STOCKAI_DATA_DIR/stocks.db${suffix}" ]; then
-          mv "/home/runner/stocks.db${suffix}" "$STOCKAI_DATA_DIR/stocks.db${suffix}"
-        fi
-      done
-      # Keep a stable path for the operator (optional convenience).
-      if [ ! -f "/home/runner/stocks.db" ] && [ ! -L "/home/runner/stocks.db" ] && [ -f "$STOCKAI_DATA_DIR/stocks.db" ]; then
-        ln -s "$STOCKAI_DATA_DIR/stocks.db" "/home/runner/stocks.db" || true
-      fi
-    - test -f "$STOCKAI_DATA_DIR/stocks.db"
-    - |
-      echo "Ensuring DB directory is writable for container user..."
-      SELINUX_FLAG=""
-      if [ -e /sys/fs/selinux/enforce ] && [ "$(cat /sys/fs/selinux/enforce)" = "1" ]; then
-        SELINUX_FLAG=":Z"
-      fi
-      docker run --rm -v "$STOCKAI_DATA_DIR:/data${SELINUX_FLAG}" alpine sh -c "chmod -R a+rwX /data && (chown -R 1000:1000 /data || true)"
     - docker compose up -d --build --remove-orphans
-    - |
-      echo "Verifying DB mount inside container..."
-      docker compose exec -T fastapi python -c "import os; from pathlib import Path; p=Path(os.getenv('DB_PATH','')); print('DB_PATH', p); print('exists', p.exists()); print('parent', p.parent, 'exists', p.parent.exists()); print('parent entries', [x.name for x in p.parent.iterdir()][:10])"
-    - |
-      echo "Verifying DB is writable inside container..."
-      docker compose exec -T fastapi python -c 'from connector import get_connection; conn=get_connection(readonly=False); conn.execute("CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)"); conn.execute("INSERT INTO app_settings(key,value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", ("__write_test","1")); conn.commit(); conn.execute("DELETE FROM app_settings WHERE key=?", ("__write_test",)); conn.commit(); conn.close(); print("write ok")'
     - echo "Ensuring SQLite indexes..."
     - docker compose exec -T fastapi python -m db_maintenance --ensure-indexes
     - docker compose ps
