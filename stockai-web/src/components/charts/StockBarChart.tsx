@@ -6,6 +6,7 @@ import Typography from '@mui/material/Typography';
 import Stack from '@mui/material/Stack';
 import type {Bar} from "../../services/api.ts";
 import { BarChart } from "@mui/x-charts";
+import { formatSymbol } from "../../utils/formatSymbol";
 
 
 function getDateFromYYYYMMDD(yyyymmdd: string): Date {
@@ -33,7 +34,8 @@ export default function StockBarChart(props: StockBarChartProps) {
 
     })
     const symbol = props.bars[0].symbol
-    const heading = symbol + " Volume"
+    const displaySymbol = formatSymbol(symbol)
+    const heading = displaySymbol + " Volume"
     const percentage = ((props.bars[props.bars.length - 1].volume! - props.bars[0].volume!) / props.bars[0].volume! * 100)
     const colorPalette = [
         theme.palette.primary.light,
@@ -75,7 +77,7 @@ export default function StockBarChart(props: StockBarChartProps) {
                     yAxis={[{ width: 50 }]}
                     series={[{
                         id: symbol,
-                        label: symbol,
+                        label: displaySymbol,
                         stack: 'total',
                         stackOrder: 'ascending',
                         data: volumes

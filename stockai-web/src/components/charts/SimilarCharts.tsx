@@ -17,6 +17,7 @@ import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import {GradientCircularProgress} from "../GradientCircularProgress.tsx";
+import { formatSymbol } from "../../utils/formatSymbol";
 
 interface SimilarChartsProps {
     symbol: string
@@ -69,17 +70,18 @@ function SimilarCharts(props: SimilarChartsProps){
     }
 
 
+    const displaySymbol = formatSymbol(props.symbol)
     if(patterns === null && !loading){
         return <></>
     }
     return <>
         {loading ? <Card><CardContent><Stack direction={'row'} alignItems={'center'} spacing={2}><Typography variant={'h4'}>Historical Trend Analysis</Typography><GradientCircularProgress/></Stack></CardContent></Card> :
-                    patterns != null && patterns.length === 0 ? <Typography variant={'h6'}>This week's prices of {props.symbol} stock is not mathematically aligned with historical data.</Typography> :
+                    patterns != null && patterns.length === 0 ? <Typography variant={'h6'}>This week's prices of {displaySymbol} stock is not mathematically aligned with historical data.</Typography> :
                     <Accordion style={{padding:'16px'}}>
                         <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                             <Stack direction={'row'} alignItems={'center'} spacing={2}>
                                 <Typography variant={'h4'}>Historical Trend Analysis</Typography>
-                                <Typography variant={'h6'}>View the most similar week segments of {props.symbol} and the proceeding week's price adjustments</Typography>
+                                <Typography variant={'h6'}>View the most similar week segments of {displaySymbol} and the proceeding week's price adjustments</Typography>
                             </Stack>
                         </AccordionSummary>
                         <Box sx={{ display: "flex", justifyContent: "flex-end", p: 2 }}>

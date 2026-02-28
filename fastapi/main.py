@@ -36,6 +36,7 @@ from admin_jobs import (
     int_date_to_iso,
 )
 from scheduled_updates import get_scheduler_status, set_scheduler_enabled, start_scheduler, stop_scheduler
+from weekly_dashboard import build_weekly_alerts, build_weekly_insights
 
 DEFAULT_BOOTSTRAP_START = "2020-01-01"
 
@@ -366,6 +367,16 @@ def weekly_movers(
         }
     finally:
         conn.close()
+
+
+@app.get("/api/weekly-insights")
+def weekly_insights():
+    return build_weekly_insights()
+
+
+@app.get("/api/weekly-alerts")
+def weekly_alerts():
+    return build_weekly_alerts()
 
 
 @app.get("/api/bars")

@@ -23,6 +23,7 @@ import { fetchWeeklyMovers, type WeeklyMover } from "../services/api";
 import { GradientCircularProgress } from "./GradientCircularProgress";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import StatCard from "./charts/StatCard";
+import { formatSymbol } from "../utils/formatSymbol";
 
 function formatPct(value: number) {
   const sign = value > 0 ? "+" : "";
@@ -47,7 +48,7 @@ function MoverCell(props: { mover?: WeeklyMover; tone: "success" | "error" }) {
   const series = mover.series && mover.series.length > 1 ? mover.series : null;
   return (
     <Stack spacing={1}>
-      <Typography variant="subtitle1">{mover.symbol}</Typography>
+      <Typography variant="subtitle1">{formatSymbol(mover.symbol)}</Typography>
       {series ? (
         <StatCard
           title=""
@@ -151,11 +152,11 @@ export default function WeeklyMovers() {
     };
   }, []);
 
-  const heading = useMemo(() => {
+  const latestDates = useMemo(() => {
     if (!range) {
-      return "Weekly movers";
+      return "Error in fetching dates.";
     }
-    return `Weekly movers (${range.start} -> ${range.end})`;
+    return `${range.start} -> ${range.end}`;
   }, [range]);
 
   const maxRows = Math.max(topMovers.length, bottomMovers.length);
@@ -189,7 +190,10 @@ export default function WeeklyMovers() {
             <Stack direction="row" alignItems="center" spacing={2}>
               <Typography variant="h4">Weekly Movers</Typography>
               <Typography variant="h6">
-                {heading}. Top and bottom performers from daily close prices.
+                Top and bottom performers from daily close prices.
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                Data from: {latestDates}
               </Typography>
             </Stack>
           </AccordionSummary>

@@ -4,6 +4,7 @@ import {
 } from "@mui/material";
 import type {Bar} from "../services/api.ts";
 import {useState} from "react";
+import { formatSymbol } from "../utils/formatSymbol";
 
 interface BarsTableProps {
     bars: Bar[]
@@ -25,7 +26,7 @@ export function BarsTable(props: BarsTableProps) {
         return <></>
     }
     const reversedBars = props.bars.slice().reverse()
-    const symbol = props.bars[0].symbol
+    const symbol = formatSymbol(props.bars[0].symbol)
     let maxHigh = 0
     let minLow = 99999999999
     props.bars.forEach((bar) => {
