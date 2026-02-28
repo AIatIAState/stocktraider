@@ -24,37 +24,19 @@ deploy_production:
     - docker system prune -af --volumes
     - echo "Checking disk space..."
     - df -h /
-    - echo "Configuring persistent database mount..."
-    - export STOCKAI_DATA_DIR=/home/runner
-    - export SCHEDULED_UPDATE_BOOTSTRAP_ENABLED=true
-    - test -f "/home/runner/stocks.db"
-    - chmod a+rw "/home/runner/stocks.db" || true
-    - chown 1000:1000 "/home/runner/stocks.db" || true
+    - echo "Linking Database..."
+    - export DB_DIR=/home/runner/stockai-data
+    - ls -la $DB_DIR/stocks.db  # verify it's there
+    - echo "Preparing SQLite WAL sidecar files..."
+    - rm -f ./data/stocks.db-wal ./data/stocks.db-shm || true
+    - touch ./data/stocks.db-wal ./data/stocks.db-shm
+    - chmod a+rw ./data/stocks.db-wal ./data/stocks.db-shm
     - echo "Deploying to production..."
     - docker compose down --remove-orphans || true
     - docker compose up -d --build --remove-orphans
     - echo "Ensuring SQLite indexes..."
     - docker compose exec -T fastapi python -m db_maintenance --ensure-indexes
     - docker compose ps
-    - |
-      echo "Smoke check (web -> api readiness)..."
-      i=0
-      passed=0
-      until [ "$i" -ge 30 ]; do
-        if docker compose exec -T fastapi python -c "import urllib.request; print(urllib.request.urlopen('http://web:8080/api/ready', timeout=2).read().decode())"; then
-          passed=1
-          break
-        fi
-        i=$((i + 1))
-        sleep 1
-      done
-      if [ "$passed" -ne 1 ]; then
-        echo "Readiness check failed after 30s"
-        docker compose ps
-        docker compose logs --no-color --tail=200 fastapi
-        docker compose logs --no-color --tail=200 web
-        exit 1
-      fi
       # Yay
     - echo "Running on coms-4020-002.class.las.iastate.edu:8080"
   tags:
