@@ -63,16 +63,26 @@ function featuredSeries(alert: WeeklyAlertFeatured) {
 }
 
 function FeaturedAlertCard({ alert }: { alert: WeeklyAlertFeatured }) {
-  const source = sourceLabel(alert.source);
   const data = featuredSeries(alert);
   const trend = alertTrend(alert.pct_change);
+  const source = sourceLabel(alert.source);
+  const showSourceChip = alert.source !== "core";
   return (
     <Card variant="outlined" sx={{ height: "100%" }}>
       <CardContent>
         <Stack spacing={1.5}>
-          <Stack direction="row" alignItems="center" spacing={1}>
-            <Typography variant="subtitle1">{formatSymbol(alert.symbol)}</Typography>
-            <Chip label={source.label} color={source.color} size="small" />
+          <Stack
+            direction="row"
+            alignItems="center"
+            spacing={1}
+            sx={{ justifyContent: "space-between" }}
+          >
+            <Typography variant="subtitle1">
+              {formatSymbol(alert.symbol)}
+            </Typography>
+            {showSourceChip ? (
+              <Chip label={source.label} color={source.color} size="small" />
+            ) : null}
           </Stack>
           {data.length ? (
             <StatCard
@@ -190,7 +200,7 @@ export default function WeeklyPriceAlertsCard() {
                           <TableCell>Weekly change</TableCell>
                           <TableCell>Start</TableCell>
                           <TableCell>End</TableCell>
-                          <TableCell>Source</TableCell>
+                        <TableCell>Source</TableCell>
                         </TableRow>
                       </TableHead>
                       <TableBody>
