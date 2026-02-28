@@ -5,6 +5,7 @@ import { Button, Card, CardContent, Stack, TextField, Typography} from "@mui/mat
 import type {Bar, SymbolInfo} from "../services/api.ts";
 import Grid from "@mui/material/Grid";
 import {GradientCircularProgress} from "./GradientCircularProgress.tsx";
+import { formatSymbol } from "../utils/formatSymbol";
 
 
 export interface StockSearchProps {
@@ -39,7 +40,7 @@ export default function StockSearch(props: StockSearchProps) {
                 sx={{ justifyContent: 'space-between' }}
             >
                 <Box width={'120px'} sx={{ textAlign: 'left' }}>
-                    <Typography>{symbol.symbol}</Typography>
+                    <Typography>{formatSymbol(symbol.symbol)}</Typography>
                     <Typography variant="caption" color="text.secondary">
                         {(symbol.exchange || 'N/A').toUpperCase()} | {symbol.asset_type ?? 'asset'}
                     </Typography>

@@ -39,26 +39,42 @@ function EventCard({ event }: { event: MarketEvent }) {
   return (
     <Card variant="outlined" sx={{ borderRadius: 2 }}>
       <CardContent sx={{ p: 2, "&:last-child": { pb: 2 } }}>
-        <Stack spacing={0.5}>
-          <Typography variant="subtitle1">
-            {event.title || "Untitled event"}
-          </Typography>
-          {metaParts.length ? (
-            <Typography variant="caption" color="text.secondary">
-              {metaParts.join(" - ")}
+        <Stack direction="row" spacing={1.5} alignItems="flex-start">
+          {event.image_url ? (
+            <Box
+              component="img"
+              src={event.image_url}
+              alt={event.title || "News thumbnail"}
+              sx={{
+                width: 72,
+                height: 72,
+                borderRadius: 1,
+                objectFit: "cover",
+                flexShrink: 0,
+              }}
+            />
+          ) : null}
+          <Stack spacing={0.5}>
+            <Typography variant="subtitle1">
+              {event.title || "Untitled event"}
             </Typography>
-          ) : null}
-          {event.url ? (
-            <Link
-              href={event.url}
-              target="_blank"
-              rel="noreferrer"
-              underline="hover"
-              variant="caption"
-            >
-              Read source
-            </Link>
-          ) : null}
+            {metaParts.length ? (
+              <Typography variant="caption" color="text.secondary">
+                {metaParts.join(" - ")}
+              </Typography>
+            ) : null}
+            {event.url ? (
+              <Link
+                href={event.url}
+                target="_blank"
+                rel="noreferrer"
+                underline="hover"
+                variant="caption"
+              >
+                Read source
+              </Link>
+            ) : null}
+          </Stack>
         </Stack>
       </CardContent>
     </Card>

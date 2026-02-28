@@ -7,6 +7,7 @@ import Stack from '@mui/material/Stack';
 import {LineChart} from '@mui/x-charts/LineChart';
 import { useMemo } from "react";
 import HoverableTooltip from "../HoverableTooltip.tsx";
+import { formatSymbol } from "../../utils/formatSymbol";
 
 
 function getDateFromYYYYMMDD(yyyymmdd: string): Date {
@@ -60,7 +61,8 @@ export default function StockScatterChart(props: StockScatterChartProps) {
         return <></>
     }
     const symbol = props.symbol
-  const heading = props.title ? props.title : symbol + " Price"
+    const displaySymbol = formatSymbol(symbol)
+  const heading = props.title ? props.title : displaySymbol + " Price"
     const desc = props.desc ? props.desc : null
     const percentage = ((props.bars[props.bars.length - 1].open! - props.bars[0].open!) / props.bars[0].open! * 100)
   const colorPalette = [
@@ -108,7 +110,7 @@ export default function StockScatterChart(props: StockScatterChartProps) {
           yAxis={[{ max:max + 1, min:min - 1 > 0 ? min - 1 : 0}]}
           series={[{
               id: symbol,
-              label: symbol,
+              label: displaySymbol,
               showMark: false,
               curve: 'linear',
               stack: 'total',

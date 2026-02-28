@@ -10,6 +10,7 @@ import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import {fetchStockForecasts, type StockForecast} from "../../services/StockForecastService.ts";
 import StockScatterChart from "./StockScatterChart.tsx";
 import Grid from "@mui/material/Grid";
+import { formatSymbol } from "../../utils/formatSymbol";
 
 interface ForecastChartsProps {
     symbol: string
@@ -43,7 +44,7 @@ export function ForecastCharts(props: ForecastChartsProps){
                     <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                         <Stack direction={'row'} alignItems={'center'} spacing={2}>
                             <Typography variant={'h4'}>Stock Price Forecasting</Typography>
-                            <Typography variant={'h6'}>View several predictions of {props.symbol}'s prices for next week from ML and statistical models.</Typography>
+                            <Typography variant={'h6'}>View several predictions of {formatSymbol(props.symbol)}'s prices for next week from ML and statistical models.</Typography>
                         </Stack>
                     </AccordionSummary>
                     <Grid container justifyContent={'space-around'} rowSpacing={'16pt'}>
