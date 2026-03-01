@@ -47,6 +47,12 @@ export function fetchWeeklyInsights() {
   return requestJson<WeeklyInsightsResponse>('/api/weekly-insights')
 }
 
+export function refreshWeeklyInsights() {
+  return requestJson<WeeklyInsightsResponse>('/api/admin/weekly-insights/refresh', {
+    method: 'POST',
+  })
+}
+
 export function fetchWeeklyAlerts() {
   return requestJson<WeeklyAlertsResponse>('/api/weekly-alerts')
 }

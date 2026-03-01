@@ -15,6 +15,7 @@ type WeeklyMarketInsightsCardProps = {
   end?: string;
   insights: string[];
   note?: string | null;
+  model?: string | null;
   loading: boolean;
   error?: string | null;
 };
@@ -22,7 +23,7 @@ type WeeklyMarketInsightsCardProps = {
 export default function WeeklyMarketInsightsCard(
   props: WeeklyMarketInsightsCardProps,
 ) {
-  const { insights, note, loading, error } = props;
+  const { insights, note, model, loading, error } = props;
   const heading = "Market Insights";
 
   return (
@@ -41,13 +42,24 @@ export default function WeeklyMarketInsightsCard(
           ) : error ? (
             <Alert severity="error">{error}</Alert>
           ) : insights.length ? (
-            <List dense>
-              {insights.map((item, index) => (
-                <ListItem key={`market-insight-${index}`} disableGutters>
-                  <ListItemText primary={item} />
-                </ListItem>
-              ))}
-            </List>
+            <>
+              <List dense>
+                {insights.map((item, index) => (
+                  <ListItem key={`market-insight-${index}`} disableGutters>
+                    <ListItemText primary={item} />
+                  </ListItem>
+                ))}
+              </List>
+              {model ? (
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  align="right"
+                >
+                  Generated with {model}.
+                </Typography>
+              ) : null}
+            </>
           ) : (
             <Alert severity="info">No market insights available.</Alert>
           )}

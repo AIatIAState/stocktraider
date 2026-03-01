@@ -65,6 +65,27 @@ def _parse_json_from_text(text: str) -> dict:
     return {}
 
 
+def _split_markdown_sections(text: str) -> dict[str, list[str]]:
+    sections: dict[str, list[str]] = {"market": [], "event": []}
+    current = "market"
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        lower = line.lower()
+        if "event impacts" in lower:
+            current = "event"
+            continue
+        if "market insights" in lower:
+            current = "market"
+            continue
+        if line.startswith(("-", "•")):
+            bullet = line.lstrip("-• ").strip()
+            if bullet:
+                sections[current].append(bullet)
+    return sections
+
+
 def _get_weekly_range(conn):
     row = conn.execute(
         "SELECT MAX(date) AS max_date FROM bars WHERE timeframe = 'daily'"
@@ -387,9 +408,18 @@ def _call_openai(
         market_insights = _ensure_list(parsed.get("market_insights"))
         event_impacts = _ensure_list(parsed.get("event_impacts"))
 
-        if not market_insights and content:
-            market_insights = _ensure_list(content)
-        return market_insights, event_impacts, None, model, False, None
+    if not market_insights and content:
+        market_insights = _ensure_list(content)
+
+    if (
+        not event_impacts
+        and len(market_insights) == 1
+        and "event impacts" in market_insights[0].lower()
+    ):
+        sections = _split_markdown_sections(market_insights[0])
+        market_insights = sections.get("market") or market_insights
+        event_impacts = sections.get("event") or event_impacts
+    return market_insights, event_impacts, None, model, False, None
     return [], [], "OpenAI request failed after retries.", model, False, None
 
 
@@ -464,7 +494,7 @@ def build_weekly_alerts() -> dict:
         conn.close()
 
 
-def build_weekly_insights() -> dict:
+def build_weekly_insights(force_refresh: bool = False) -> dict:
     conn = get_connection(readonly=True)
     try:
         start_int, end_int, start_date, end_date = _get_weekly_range(conn)
@@ -474,16 +504,22 @@ def build_weekly_insights() -> dict:
         now = time.time()
         with INSIGHTS_CACHE_LOCK:
             cached = INSIGHTS_CACHE
-            if (
-                cached["end_int"] == end_int
-                and cached["events_sig"] == events_sig
-                and (now - cached["timestamp"]) < INSIGHTS_CACHE_TTL_SECONDS
-            ):
-                payload = cached["payload"]
-                if isinstance(payload, dict):
-                    return payload
-
             cooldown_until = float(cached.get("cooldown_until") or 0.0)
+            if not force_refresh:
+                if (
+                    cached["end_int"] == end_int
+                    and cached["events_sig"] == events_sig
+                    and (now - cached["timestamp"]) < INSIGHTS_CACHE_TTL_SECONDS
+                ):
+                    payload = cached["payload"]
+                    if isinstance(payload, dict):
+                        note = payload.get("note")
+                        if note:
+                            if now < cooldown_until:
+                                return payload
+                        else:
+                            return payload
+
             if now < cooldown_until:
                 payload = cached.get("payload")
                 if isinstance(payload, dict):
@@ -522,8 +558,18 @@ def build_weekly_insights() -> dict:
                 "bottom_movers": bottom_movers,
                 "events": events,
                 "instructions": {
-                    "market_insights": "3-5 bullets about weekly market conditions.",
-                    "event_impacts": "2-5 bullets connecting listed events to markets. If no events, return [].",
+                    "market_insights": (
+                        "3-5 bullets about weekly market conditions. Each bullet must mention "
+                        "at least one specific symbol from core_changes or the top/bottom movers. "
+                        "Prefer referencing the top three gainers/losers when possible."
+                    ),
+                    "event_impacts": (
+                        "2-5 bullets connecting listed events to specific stock symbols and an "
+                        "expected direction (potential gain or loss). Each bullet should reference "
+                        "the event and a symbol (prefer core or top/bottom movers). "
+                        "Use cautious language (e.g., could, may) and avoid financial advice. "
+                        "If no events, return []."
+                    ),
                 },
             },
             ensure_ascii=True,

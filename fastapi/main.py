@@ -374,6 +374,11 @@ def weekly_insights():
     return build_weekly_insights()
 
 
+@app.post("/api/admin/weekly-insights/refresh")
+def weekly_insights_refresh():
+    return build_weekly_insights(force_refresh=True)
+
+
 @app.get("/api/weekly-alerts")
 def weekly_alerts():
     return build_weekly_alerts()

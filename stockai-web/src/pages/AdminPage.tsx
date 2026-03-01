@@ -1,6 +1,7 @@
 import { Box, Container } from "@mui/material";
 import AppAppBar from "../components/AppAppBar";
 import AdminIntroCard from "../components/AdminIntroCard";
+import AdminInsightsRefreshCard from "../components/AdminInsightsRefreshCard";
 import AdminJobStatusCard from "../components/AdminJobStatusCard";
 import AdminSchedulerCard from "../components/AdminSchedulerCard";
 import AdminUpdateCard from "../components/AdminUpdateCard";
@@ -16,6 +17,7 @@ export default function AdminPage(props: { disableCustomTheme?: boolean }) {
         <Box sx={{ display: "flex", flexDirection: "column", gap: 4 }}>
           <AdminIntroCard />
           <AdminUpdateCard />
+          <AdminInsightsRefreshCard />
           <AdminSchedulerCard />
           <AdminJobStatusCard />
           <DBStatsCard />

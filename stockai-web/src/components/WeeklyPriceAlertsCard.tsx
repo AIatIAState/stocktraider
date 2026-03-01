@@ -17,12 +17,14 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import {
   fetchWeeklyAlerts,
+  fetchWeeklyInsights,
   type WeeklyAlert,
   type WeeklyAlertFeatured,
 } from "../services/api";
 import { GradientCircularProgress } from "./GradientCircularProgress";
 import StatCard from "./charts/StatCard";
 import { formatSymbol } from "../utils/formatSymbol";
+import WeeklyMarketInsightsCard from "./WeeklyMarketInsightsCard";
 
 function formatPct(value: number) {
   const sign = value > 0 ? "+" : "";
@@ -113,6 +115,11 @@ export default function WeeklyPriceAlertsCard() {
   );
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [insights, setInsights] = useState<string[]>([]);
+  const [insightsNote, setInsightsNote] = useState<string | null>(null);
+  const [insightsModel, setInsightsModel] = useState<string | null>(null);
+  const [insightsError, setInsightsError] = useState<string | null>(null);
+  const [insightsLoading, setInsightsLoading] = useState(true);
 
   useEffect(() => {
     let active = true;
@@ -140,6 +147,39 @@ export default function WeeklyPriceAlertsCard() {
           return;
         }
         setLoading(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    setInsightsLoading(true);
+    fetchWeeklyInsights()
+      .then((response) => {
+        if (!active) {
+          return;
+        }
+        setInsights(response.market_insights ?? []);
+        setInsightsNote(response.note ?? null);
+        setInsightsModel(response.model ?? null);
+        setInsightsError(null);
+      })
+      .catch((err) => {
+        if (!active) {
+          return;
+        }
+        const message =
+          err instanceof Error ? err.message : "Failed to load insights.";
+        setInsightsError(message);
+      })
+      .finally(() => {
+        if (!active) {
+          return;
+        }
+        setInsightsLoading(false);
       });
 
     return () => {
@@ -190,6 +230,13 @@ export default function WeeklyPriceAlertsCard() {
                     </Grid>
                   </Stack>
                 ) : null}
+                <WeeklyMarketInsightsCard
+                  insights={insights}
+                  note={insightsNote}
+                  model={insightsModel}
+                  loading={insightsLoading}
+                  error={insightsError}
+                />
                 <Stack spacing={1}>
                   <Typography variant="h6">All price alerts (20)</Typography>
                   <TableContainer sx={{ maxHeight: 360 }}>
