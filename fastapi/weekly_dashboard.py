@@ -558,6 +558,7 @@ def build_weekly_insights(force_refresh: bool = False) -> dict:
                 "bottom_movers": bottom_movers,
                 "events": events,
                 "instructions": {
+                    # PROMPTS HEEEERRRRRREEEEEEEEEEEEEEEE
                     "market_insights": (
                         "3-5 bullets about weekly market conditions. Each bullet must mention "
                         "at least one specific symbol from core_changes or the top/bottom movers. "
