@@ -19,6 +19,7 @@ type WeeklyWorldEventsCardProps = {
   impacts: string[];
   events: MarketEvent[];
   eventsNote?: string | null;
+  model?: string | null;
   loading: boolean;
   error?: string | null;
 };
@@ -84,7 +85,7 @@ function EventCard({ event }: { event: MarketEvent }) {
 export default function WeeklyWorldEventsCard(
   props: WeeklyWorldEventsCardProps,
 ) {
-  const { impacts, events, eventsNote, loading, error } = props;
+  const { impacts, events, eventsNote, model, loading, error } = props;
   const heading = "World News";
 
   return (
@@ -103,13 +104,24 @@ export default function WeeklyWorldEventsCard(
           ) : error ? (
             <Alert severity="error">{error}</Alert>
           ) : impacts.length ? (
-            <List dense>
-              {impacts.map((item, index) => (
-                <ListItem key={`event-impact-${index}`} disableGutters>
-                  <ListItemText primary={item} />
-                </ListItem>
-              ))}
-            </List>
+            <>
+              <List dense>
+                {impacts.map((item, index) => (
+                  <ListItem key={`event-impact-${index}`} disableGutters>
+                    <ListItemText primary={item} />
+                  </ListItem>
+                ))}
+              </List>
+              {model ? (
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  align="right"
+                >
+                  Generated with {model}.
+                </Typography>
+              ) : null}
+            </>
           ) : (
             <Alert severity="info">No event impact summary available.</Alert>
           )}

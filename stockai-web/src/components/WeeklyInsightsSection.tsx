@@ -4,7 +4,6 @@ import {
   fetchWeeklyInsights,
   type WeeklyInsightsResponse,
 } from "../services/api";
-// import WeeklyMarketInsightsCard from "./WeeklyMarketInsightsCard";
 import WeeklyWorldEventsCard from "./WeeklyWorldEventsCard";
 
 export default function WeeklyInsightsSection() {
@@ -43,9 +42,6 @@ export default function WeeklyInsightsSection() {
     };
   }, []);
 
-  const modelLabel = data?.model
-    ? `AI-generated summary (${data.model}).`
-    : "AI summary unavailable.";
   const sourcesLabel =
     data?.sources && data.sources.length
       ? `Sources: ${data.sources.join(", ")}.`
@@ -55,18 +51,19 @@ export default function WeeklyInsightsSection() {
     <Container maxWidth="lg" sx={{ py: { xs: 4, md: 6 } }}>
       <Stack spacing={2}>
         <Typography variant="h4">Weekly Insights</Typography>
-            <WeeklyWorldEventsCard
-              start={data?.start}
-              end={data?.end}
-              impacts={data?.event_impacts ?? []}
-              events={data?.events ?? []}
-              eventsNote={data?.events_note ?? null}
-              loading={loading}
-              error={error}
-            />
-          <Typography variant="caption" color="text.secondary">
-            {modelLabel} {sourcesLabel}
-          </Typography>
+        <WeeklyWorldEventsCard
+          start={data?.start}
+          end={data?.end}
+          impacts={data?.event_impacts ?? []}
+          events={data?.events ?? []}
+          eventsNote={data?.events_note ?? null}
+          model={data?.model ?? null}
+          loading={loading}
+          error={error}
+        />
+        <Typography variant="caption" color="text.secondary" align="right">
+          {sourcesLabel}
+        </Typography>
       </Stack>
     </Container>
   );
