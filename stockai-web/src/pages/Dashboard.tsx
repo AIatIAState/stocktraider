@@ -1,18 +1,22 @@
 import AppAppBar from "../components/AppAppBar";
-import AppTheme from "../themes/AppTheme";
 import Footer from "../components/Footer";
 import WeeklyInsightsSection from "../components/WeeklyInsightsSection";
-// import WeeklyMovers from "../components/WeeklyMovers";
 import WeeklyPriceAlertsCard from "../components/WeeklyPriceAlertsCard";
+import PageHeader from "../components/PageHeader";
+import { GradientText } from "../themes/styles";
 
-export default function Dashboard(props: { disableCustomTheme?: boolean }) {
+export default function Dashboard() {
   return (
-    <AppTheme {...props}>
+    <>
       <AppAppBar />
+      <PageHeader
+        overline="Weekly Dashboard"
+        title={<>Market <GradientText>Intelligence</GradientText></>}
+        description="AI-powered insights on your core watchlist plus the week's biggest movers."
+      />
       <WeeklyPriceAlertsCard />
       <WeeklyInsightsSection />
-      {/* <WeeklyMovers /> */}
       <Footer />
-    </AppTheme>
+    </>
   );
 }

@@ -45,6 +45,17 @@ export default defineConfig([
 ])
 ```
 
+## AI Acknowledgement
+
+The UI design, theming, and visual component work in this project was developed with the assistance of [Claude Code](https://claude.ai/claude-code) (Anthropic). This allowed the development team to stay focused on core application logic, data pipelines, and AI/ML feature development while maintaining a modern, consistent frontend. Detailed prompts and feedback was used to maintain clean code for continued human devlopment.
+
+**AI-assisted areas include:**
+- MUI v7 theme setup with light/dark/system color mode support (`AppTheme`, `theme.ts`)
+- Brand color system and centralized design tokens (`src/themes/colors.ts`, `src/themes/styles.tsx`)
+- Page layout components (`PageHeader`, `Hero`, `AppAppBar`, `Footer`)
+- Chart color integration and visual polish (`StockPieChart`, `StockBarChart`, `StockScatterChart`)
+- Custom loading animation (`GradientCircularProgress`) — stock chart SVG with CSS keyframe animation
+- Shared gradient text utilities (`GradientText`, `GradientOverline`)
 You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
 
 ```js
