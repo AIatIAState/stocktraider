@@ -1,4 +1,3 @@
-import { useTheme } from '@mui/material/styles';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import Chip from '@mui/material/Chip';
@@ -25,7 +24,6 @@ export interface StockScatterChartProps {
         size?: "big" | "small"
 }
 export default function StockScatterChart(props: StockScatterChartProps) {
-    const theme = useTheme();
 
     const { opens, dates, min, max } = useMemo(() => {
         if (!props.bars?.length) {
@@ -65,14 +63,8 @@ export default function StockScatterChart(props: StockScatterChartProps) {
   const heading = props.title ? props.title : displaySymbol + " Price"
     const desc = props.desc ? props.desc : null
     const percentage = ((props.bars[props.bars.length - 1].open! - props.bars[0].open!) / props.bars[0].open! * 100)
-  const colorPalette = [
-    theme.palette.primary.light,
-    theme.palette.primary.main,
-    theme.palette.primary.dark,
-  ];
-
   return (
-    <Card variant="outlined" sx={{ width: props.size == "big"? '100%' : '30%'}}>
+    <Card variant="outlined" sx={{ width: '100%', borderRadius: 3 }}>
       <CardContent>
         <Stack sx={{ justifyContent: 'space-between' }}>
           <Stack
@@ -97,7 +89,7 @@ export default function StockScatterChart(props: StockScatterChartProps) {
           </Stack>
         </Stack>
         <LineChart
-          colors={colorPalette}
+          colors={['var(--mui-palette-primary-main)']}
           xAxis={[
             {
               scaleType: 'time',

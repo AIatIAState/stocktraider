@@ -1,4 +1,3 @@
-import { useTheme } from '@mui/material/styles';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import Chip from '@mui/material/Chip';
@@ -20,8 +19,6 @@ export interface StockBarChartProps {
     bars: Bar[]
 }
 export default function StockBarChart(props: StockBarChartProps) {
-    const theme = useTheme();
-
     if(props.bars.length <= 0) {
         return <></>
     }
@@ -37,14 +34,8 @@ export default function StockBarChart(props: StockBarChartProps) {
     const displaySymbol = formatSymbol(symbol)
     const heading = displaySymbol + " Volume"
     const percentage = ((props.bars[props.bars.length - 1].volume! - props.bars[0].volume!) / props.bars[0].volume! * 100)
-    const colorPalette = [
-        theme.palette.primary.light,
-        theme.palette.primary.main,
-        theme.palette.primary.dark,
-    ];
-
     return (
-        <Card variant="outlined" sx={{ width: '100%' }}>
+        <Card variant="outlined" sx={{ width: '100%', borderRadius: 3 }}>
             <CardContent>
                 <Stack sx={{ justifyContent: 'space-between' }}>
                     <Stack
@@ -62,7 +53,7 @@ export default function StockBarChart(props: StockBarChartProps) {
                     </Stack>
                 </Stack>
                 <BarChart
-                    colors={colorPalette}
+                    colors={['var(--mui-palette-primary-main)']}
                     xAxis={[
                         {
                             scaleType: 'band',

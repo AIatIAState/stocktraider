@@ -25,6 +25,7 @@ import { GradientCircularProgress } from "./GradientCircularProgress";
 import StatCard from "./charts/StatCard";
 import { formatSymbol } from "../utils/formatSymbol";
 import WeeklyMarketInsightsCard from "./WeeklyMarketInsightsCard";
+import { GradientOverline } from "../themes/styles";
 
 function formatPct(value: number) {
   const sign = value > 0 ? "+" : "";
@@ -70,7 +71,15 @@ function FeaturedAlertCard({ alert }: { alert: WeeklyAlertFeatured }) {
   const source = sourceLabel(alert.source);
   const showSourceChip = alert.source !== "core";
   return (
-    <Card variant="outlined" sx={{ height: "100%" }}>
+    <Card
+      variant="outlined"
+      sx={{
+        height: "100%",
+        borderRadius: 3,
+        transition: 'border-color 0.2s',
+        '&:hover': { borderColor: 'primary.light' },
+      }}
+    >
       <CardContent>
         <Stack spacing={1.5}>
           <Stack
@@ -217,7 +226,7 @@ export default function WeeklyPriceAlertsCard() {
               <Stack spacing={3}>
                 {featured.length ? (
                   <Stack spacing={1.5}>
-                    <Typography variant="h6">Weekly Spotlight</Typography>
+                    <GradientOverline>Weekly Spotlight</GradientOverline>
                     <Grid container spacing={2}>
                       {featured.map((alert) => (
                         <Grid
@@ -238,7 +247,7 @@ export default function WeeklyPriceAlertsCard() {
                   error={insightsError}
                 />
                 <Stack spacing={1}>
-                  <Typography variant="h6">All price alerts (20)</Typography>
+                  <GradientOverline>All price alerts (20)</GradientOverline>
                   <TableContainer sx={{ maxHeight: 360 }}>
                     <Table size="small" stickyHeader>
                       <TableHead>

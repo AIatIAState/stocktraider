@@ -48,11 +48,18 @@ export function StockCharts(props : StockChartsProps) {
 
 
     return (<>
-            <Box sx={{ml: 'auto'}}>
-                <FormControl>
+            <Box sx={{ ml: 'auto' }}>
+                <FormControl size="small">
                     <InputLabel>Timeframe</InputLabel>
                     <Select
-                        label={"Timeframe"} defaultValue={"1 Month"} onChange={(e) => {
+                        label="Timeframe"
+                        defaultValue="1 Month"
+                        sx={{
+                          borderRadius: 2,
+                          minWidth: 130,
+                          '& .MuiOutlinedInput-notchedOutline': { borderColor: 'divider' },
+                        }}
+                        onChange={(e) => {
                             if(e.target.value === "All Time") {
                                 setStartDate(getDateFromYYYYMMDD(props.bars[0]?.date.toString()))
                                 return

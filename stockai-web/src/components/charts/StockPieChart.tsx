@@ -3,10 +3,10 @@ import {PieChart} from "@mui/x-charts/PieChart";
 import type {PieValueType} from "@mui/x-charts";
 import {useDrawingArea} from "@mui/x-charts/hooks";
 import {styled} from "@mui/material/styles";
-import theme from "../../theme.ts";
 import CardContent from "@mui/material/CardContent";
 import Card from "@mui/material/Card";
 import Typography from "@mui/material/Typography";
+import { formatSymbol } from "../../utils/formatSymbol";
 
 interface StockPieChartProps {
     bars: Bar[],
@@ -68,10 +68,10 @@ export function StockPieChart(props: StockPieChartProps){
     return <Card>
         <CardContent>
             <Typography>
-                AAPL.US Trend Breakdown
+                {formatSymbol(props.bars[0]?.symbol ?? '')} Trend Breakdown
             </Typography>
         <PieChart
-            colors={[theme.palette.primary.dark, theme.palette.secondary.main, theme.palette.grey.A700]}
+            colors={['#4caf50', '#ef5350', '#9fa8da']}
             margin={{ left: 80, right: 80, top: 80, bottom: 80 }}
             series={[
                 {
