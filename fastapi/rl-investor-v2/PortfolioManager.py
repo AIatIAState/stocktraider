@@ -532,7 +532,7 @@ if __name__ == "__main__":
     parser.add_argument("--patience", type=int, default=3)
     parser.add_argument("--episodes", type=int, default=15)
     parser.add_argument("--gpu", type=bool, default=True)
-    parser.add_argument("--use-precomputed-df", type=bool, default=False)
+    parser.add_argument("--use-precomputed-df", type=bool, default=True)
     args = parser.parse_args()
 
     if args.use_precomputed_df:
@@ -544,10 +544,10 @@ if __name__ == "__main__":
         features, target = build_full_features(tickers, start_date=date(2019, 1, 1), end_date=date(2025, 1, 1))
         features = features.sort_values(['ticker', 'Date']).reset_index(drop=True)
         features = features.drop(columns=['Date'])
-        target.to_csv("target_series.csv")
-        features.to_csv("feature_dataset.csv")
+        target.to_csv("target_series.csv", index=False)
+        features.to_csv("feature_dataset.csv", index=False)
 
-    model = TransformerInvestor(gpu=True)
+    model = TransformerInvestor(gpu=args.gpu)
 
     train_dataloader, val_dataloader= model.prepare_data(features, target)
     history = model.train(train_dataloader, val_dataloader, epochs=15, patience=3)
