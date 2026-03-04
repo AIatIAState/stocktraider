@@ -156,7 +156,6 @@ def fetch_fred_data(series_id, name):
     data = data.reindex(full_date_range, columns=[name], method='ffill')
     data = data.fillna(method="ffill")
 
-    data.to_csv(f'./fred/{name}.csv', index=True)
     return data[name]
 
 # -------------------------

@@ -1,6 +1,5 @@
 import time
 from datetime import date
-from turtledemo.penrose import start
 
 import numpy as np
 import pandas as pd
@@ -131,6 +130,7 @@ class TransformerInvestor:
         self.d_ff = d_ff
         self.num_layers = num_layers
         self.dropout = dropout
+        self.gpu = gpu
 
         self.model = None
         self.scaler = RobustScaler()
@@ -296,7 +296,8 @@ class TransformerInvestor:
             num_heads=self.num_heads,
             d_ff=self.d_ff,
             num_layers=self.num_layers,
-            dropout=self.dropout
+            dropout=self.dropout,
+            gpu=self.gpu
         )
 
         self.model.to(self.device)
