@@ -490,7 +490,7 @@ def build_full_features(tickers, start_date=date(2021, 1, 1), end_date=date(2024
     features = features[features['Date'] >= start_date_datetime]
 
     # ---- Forward Return Target (10d) ----
-    future_20d_return = features.groupby('ticker')['Close'].pct_change(20).shift(-20)
+    future_20d_return = features.groupby('ticker')['ret_20d'].shift(-20)
 
     features = features[features['Date'] <= end_date_datetime]
     return features, future_20d_return[:len(features)]
