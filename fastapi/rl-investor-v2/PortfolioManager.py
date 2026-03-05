@@ -564,6 +564,8 @@ class TransformerInvestor:
         self.model.eval()
         with torch.no_grad():
             predictions = self.model(x)
+            if isinstance(predictions, torch.Tensor):
+                predictions = predictions.cpu().detach().numpy()
         unscaled_predictions = self.target_scaler.inverse_transform(predictions)
         return unscaled_predictions
 
