@@ -382,12 +382,12 @@ def time_embeddings(start_date, end_date):
 def build_full_features(tickers, start_date=date(2021, 1, 1), end_date=date(2024, 1, 1)):
 
     before_start_date = start_date - timedelta(days=400)
-    after_end_date = end_date + timedelta(days=40)
+    after_end_date = end_date + timedelta(days=10)
     # Download multi-ticker price data
     data = yf.download(tickers, start=before_start_date.strftime("%Y-%m-%d"), interval="1d", end=after_end_date, group_by='ticker', auto_adjust=True)
-    spy = yf.download("SPY", start=before_start_date.strftime("%Y-%m-%d"), interval="1d", end=end_date)['Close']['SPY']
-    vix = yf.download("^VIX", start=before_start_date.strftime("%Y-%m-%d"), interval="1d", end=end_date)['Close']
-    rsp = yf.download("RSP", start=before_start_date.strftime("%Y-%m-%d"), interval="1d", end=end_date)['Close']['RSP']
+    spy = yf.download("SPY", start=before_start_date.strftime("%Y-%m-%d"), interval="1d", end=after_end_date)['Close']['SPY']
+    vix = yf.download("^VIX", start=before_start_date.strftime("%Y-%m-%d"), interval="1d", end=after_end_date)['Close']
+    rsp = yf.download("RSP", start=before_start_date.strftime("%Y-%m-%d"), interval="1d", end=after_end_date)['Close']['RSP']
 
     feature_list = []
 
@@ -396,7 +396,7 @@ def build_full_features(tickers, start_date=date(2021, 1, 1), end_date=date(2024
         feat = pd.DataFrame(index=df.index)
 
         # ---- Technical / Momentum ----
-        for w in [5, 10, 20, 60, 120, 252]:
+        for w in [1, 5, 10, 20, 60, 120, 252]:
             feat[f"ret_{w}d"] = rolling_return(df['Close'], w)
         feat["momentum_12_1"] = momentum_12_1(df['Close'])
         for w in [20, 60, 200]:
@@ -430,7 +430,7 @@ def build_full_features(tickers, start_date=date(2021, 1, 1), end_date=date(2024
         #YFinance returns NaN for most tickers (not all stocks have recommendations)
         feat['put_call_ratio'] = feat['put_call_ratio'].fillna(-1)
 
-        feat['ticker'] = ticker
+        feat['ticker'] = ticker + '_' + str(start_date.year)
         feat.reset_index(inplace=True)
         feat.rename(columns={'index': 'Date'}, inplace=True)
         feature_list.append(feat)
@@ -489,11 +489,11 @@ def build_full_features(tickers, start_date=date(2021, 1, 1), end_date=date(2024
 
     features = features[features['Date'] >= start_date_datetime]
 
-    # ---- Forward Return Target (10d) ----
-    future_20d_return = features.groupby('ticker')['ret_20d'].shift(-20)
+    # ---- Forward Return Target (1d) ----
+    future_1d_return = features.groupby('ticker')['ret_1d'].shift(-1)
 
     features = features[features['Date'] <= end_date_datetime]
-    return features, future_20d_return[:len(features)]
+    return features, future_1d_return[:len(features)]
 
 
 # -------------------------

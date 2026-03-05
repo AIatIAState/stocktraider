@@ -131,6 +131,9 @@ class TransformerInvestor:
         print(f"Device: {self.device}")
 
     def prepare_predictions(self, features_df, targets, batch_size=1):
+        features_df = features_df.sort_values(['ticker', 'Date']).reset_index(drop=True)
+        features_df = features_df.drop(columns=['Date'])
+        targets.fillna(-1)
         if 'ticker' not in features_df.columns:
             raise ValueError("features_df must contain a 'ticker' column!")
 
@@ -182,6 +185,9 @@ class TransformerInvestor:
 
 
     def prepare_data(self, features_df, target_series, batch_size=32, val_size=.1):
+        features_df = features_df.sort_values(['ticker', 'Date']).reset_index(drop=True)
+        features_df = features_df.drop(columns=['Date'])
+
         print("\n" + "=" * 80)
         print("DATA PREPARATION (TICKER-AWARE)")
         print("=" * 80)
