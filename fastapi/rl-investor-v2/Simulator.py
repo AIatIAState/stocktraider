@@ -32,7 +32,6 @@ def simulate_year(year, look_back=5, precompute=True, save_dir= "./"):
             break
         if not (precompute and os.path.isfile(feature_file_save) and os.path.isfile(target_file_save)):
             tickers = get_sp500_at_date(date(year - 1 - i, 1, 1))
-            tickers = ["AAPL", "MSFT", "GOOGL", "AMZN"]
             features, target = build_full_features(tickers, start_date=date(year - 1 - i, 1, 1), end_date=date(year - i, 1, 1))
 
             target.to_csv(target_file_save, index=False)
@@ -72,7 +71,6 @@ def simulate_year(year, look_back=5, precompute=True, save_dir= "./"):
 
     if not (precompute and os.path.isfile(feature_file_save) and os.path.isfile(target_file_save)):
         tickers = get_sp500_at_date(date(year, 1, 1))
-        tickers = ["AAPL", "MSFT", "GOOGL", "AMZN"]
         features, target = build_full_features(tickers, start_date=date(year, 1, 1), end_date=date(year + 1, 1, 1))
 
         target.to_csv(target_file_save, index=False)
