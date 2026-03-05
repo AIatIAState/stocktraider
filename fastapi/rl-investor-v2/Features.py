@@ -382,7 +382,7 @@ def time_embeddings(start_date, end_date):
 def build_full_features(tickers, start_date=date(2021, 1, 1), end_date=date(2024, 1, 1)):
 
     before_start_date = start_date - timedelta(days=400)
-    after_end_date = end_date + timedelta(days=30)
+    after_end_date = end_date + timedelta(days=40)
     # Download multi-ticker price data
     data = yf.download(tickers, start=before_start_date.strftime("%Y-%m-%d"), interval="1d", end=after_end_date, group_by='ticker', auto_adjust=True)
     spy = yf.download("SPY", start=before_start_date.strftime("%Y-%m-%d"), interval="1d", end=end_date)['Close']['SPY']
@@ -490,10 +490,10 @@ def build_full_features(tickers, start_date=date(2021, 1, 1), end_date=date(2024
     features = features[features['Date'] >= start_date_datetime]
 
     # ---- Forward Return Target (10d) ----
-    fut_10d_ret = features.groupby('ticker')['ret_5d'].shift(-2)
+    future_20d_return = features.groupby('ticker')['Close'].pct_change(20).shift(-20)
 
     features = features[features['Date'] <= end_date_datetime]
-    return features, fut_10d_ret[:len(features)]
+    return features, future_20d_return[:len(features)]
 
 
 # -------------------------

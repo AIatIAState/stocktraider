@@ -105,24 +105,6 @@ class TransformerModel(nn.Module):
 
         return x
 
-    def predict(self, x):
-        self.model.eval()
-
-        X_test_tensor = torch.from_numpy(x).float()
-
-        predictions_list = []
-
-        with torch.no_grad():
-            batch_size = 32
-            for i in range(0, len(x), batch_size):
-                X_batch = X_test_tensor[i:i + batch_size].to(self.device)
-                predictions = self.model(X_batch)
-                predictions_list.append(predictions.cpu().numpy())
-
-        predictions = np.concatenate(predictions_list, axis=0)
-        predictions = predictions.flatten()
-        return predictions
-
 class TransformerInvestor:
     def __init__(self, seq_length=20, num_features=None, num_heads=8,
                  d_ff=512, num_layers=2, dropout=0.1, gpu=False):
@@ -147,6 +129,57 @@ class TransformerInvestor:
 
         print(f"TransformerInvestor initialized")
         print(f"Device: {self.device}")
+
+    def prepare_predictions(self, features_df, targets, batch_size=1):
+        if 'ticker' not in features_df.columns:
+            raise ValueError("features_df must contain a 'ticker' column!")
+
+        # ===== RESET INDICES FIRST TO ENSURE ALIGNMENT =====
+        features_df = features_df.reset_index(drop=True)
+        targets = targets.reset_index(drop=True)
+
+        ticker_col = features_df['ticker'].copy()
+        features_only = features_df.drop(columns=['ticker'])
+
+        # Forward Fill NaNs
+        features_only = features_only.reset_index(drop=True)
+        for ticker in ticker_col.unique():
+            mask = ticker_col == ticker
+            indices = np.where(mask)[0]
+            features_only.loc[indices] = features_only.loc[indices].fillna(method='ffill').fillna(method='bfill')
+
+        # If still any NaN (at start of series), drop those rows
+        still_nan_mask = features_only.isna().any(axis=1)
+        features_only = features_only[~still_nan_mask.values].reset_index(drop=True)
+        remaining_targets = targets[~still_nan_mask.values].reset_index(drop=True)
+        ticker_col = ticker_col[~still_nan_mask.values].reset_index(drop=True)
+
+        print(f"   {features_only.isna().sum().sum()} total NaN values in features (AFTER handling)")
+        print(f"   Remaining samples: {len(features_only)}")
+
+        ticker_col = ticker_col.reset_index(drop=True)
+        remaining_targets = remaining_targets.reset_index(drop=True)
+
+        ticker_counts = ticker_col.value_counts().sort_index()
+        print(f"  Samples per ticker:")
+        for ticker, count in ticker_counts.items():
+            print(f"    {ticker}: {count:,}")
+
+        if self.num_features is None:
+            self.num_features = features_only.shape[1]
+            print(f"  Features detected: {self.num_features}")
+
+        features_scaled = self.scaler.transform(features_only)
+        features_scaled = np.clip(features_scaled, -5, 5)
+
+        X, remaining_targets, ticker_sequence = self._create_sequences_per_ticker(
+            features_scaled,
+            remaining_targets.to_numpy(),
+            ticker_col.values
+        )
+
+        return torch.from_numpy(X).float(), remaining_targets
+
 
     def prepare_data(self, features_df, target_series, batch_size=32, val_size=.1):
         print("\n" + "=" * 80)
@@ -511,7 +544,7 @@ class TransformerInvestor:
 
     def load(self, filepath):
         """Load entire model from checkpoint."""
-        checkpoint = torch.load(filepath)
+        checkpoint = torch.load(filepath, weights_only=False, map_location=self.device)
         config = checkpoint['config']
 
         self.seq_length = config['seq_length']
@@ -527,12 +560,20 @@ class TransformerInvestor:
         self.build_model()
         self.model.load_state_dict(checkpoint['model_state_dict'])
 
+    def predict(self, x):
+        self.model.eval()
+        with torch.no_grad():
+            predictions = self.model(x)
+        unscaled_predictions = self.target_scaler.inverse_transform(predictions)
+        return unscaled_predictions
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--patience", type=int, default=3)
     parser.add_argument("--episodes", type=int, default=15)
     parser.add_argument("--gpu", type=bool, default=True)
-    parser.add_argument("--use-precomputed-df", type=bool, default=True)
+    parser.add_argument("--use-precomputed-df", type=bool, default=False)
     args = parser.parse_args()
 
     if args.use_precomputed_df:
@@ -551,5 +592,28 @@ if __name__ == "__main__":
 
     train_dataloader, val_dataloader= model.prepare_data(features, target)
     history = model.train(train_dataloader, val_dataloader, epochs=15, patience=3)
-    #predictions = model.predict(X_test)
     model.save('./transformer_investor_ticker_aware.pth')
+
+
+    # PREDICTING
+
+    # model = TransformerInvestor()
+    # model.load('./transformer_investor_ticker_aware.pth')
+    tickers = get_sp500_at_date(date(2025, 1, 1))
+    features, target = build_full_features(tickers, start_date=date(2024, 12, 1), end_date=date(2026, 1, 1))
+    features = features.sort_values(['ticker', 'Date']).reset_index(drop=True)
+    features = features.drop(columns=['Date'])
+    target = target.fillna(-1)
+    test_tensor, surviving_samples = model.prepare_predictions(features, target)
+    predictions = model.predict(test_tensor).flatten()
+    print(f"Number of samples predicted: {len(predictions)}")
+    print(f"Number of labels: {len(surviving_samples)}")
+    y_true, y_pred = np.array(surviving_samples), np.array(predictions)
+    err = y_true - y_pred
+    print({
+        "MAE": np.mean(np.abs(err)),
+        "RMSE": np.sqrt(np.mean(err ** 2)),
+        "R2": 1 - np.sum(err ** 2) / np.sum((y_true - y_true.mean()) ** 2),
+        "Directional_Accuracy": np.mean(np.sign(y_true) == np.sign(y_pred)),
+        "Corr": np.corrcoef(y_true, y_pred)[0, 1],
+    })
