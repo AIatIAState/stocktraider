@@ -101,6 +101,10 @@ def trade(year, save_dir="./"):
     ending_date = date(year + 1, 1, 1)
 
 
+    portfolio0 = {
+        "name": "equal_weights_top_10",
+        "portfolio":[(starting_date, starting_portfolio_value)]
+    }
     portfolio1 = {
         "name": "equal_weights_top_30",
         "portfolio":[(starting_date, starting_portfolio_value)]
@@ -112,27 +116,19 @@ def trade(year, save_dir="./"):
     }
 
     portfolio3 = {
-        "name": "weighted_005_thresholded_top_10",
+        "name": "weighted_000_thresholded_top_10",
         "portfolio":[(starting_date, starting_portfolio_value)]
     }
     portfolio4 = {
-        "name": "weighted_005_thresholded_top_30",
+        "name": "weighted_000_thresholded_top_30",
         "portfolio":[(starting_date, starting_portfolio_value)]
     }
     portfolio5 = {
-        "name": "weighted_005_thresholded_top_50",
+        "name": "weighted_000_thresholded_top_50",
         "portfolio":[(starting_date, starting_portfolio_value)]
     }
     portfolio6 = {
-        "name": "weighted_010_thresholded_top_10",
-        "portfolio":[(starting_date, starting_portfolio_value)]
-    }
-    portfolio7 = {
-        "name": "weighted_010_thresholded_top_30",
-        "portfolio":[(starting_date, starting_portfolio_value)]
-    }
-    portfolio8 = {
-        "name": "weighted_010_thresholded_top_50",
+        "name": "weighted_000_thresholded_all",
         "portfolio":[(starting_date, starting_portfolio_value)]
     }
     portfolio9 = {
@@ -151,7 +147,27 @@ def trade(year, save_dir="./"):
         "name": "squared_weighted_010_thresholded_top_50",
         "portfolio":[(starting_date, starting_portfolio_value)]
     }
-    weighted_portfolios = [portfolio3, portfolio4, portfolio5, portfolio6, portfolio7, portfolio8]
+    portfolio13 =  {
+        "name": "equal_weights_top_20",
+        "portfolio":[(starting_date, starting_portfolio_value)]
+    }
+    portfolio14 = {
+        "name": "threshold_0_equal_weights_top_10",
+        "portfolio":[(starting_date, starting_portfolio_value)]
+    }
+    portfolio15 = {
+        "name": "threshold_0_equal_weights_top_20",
+        "portfolio":[(starting_date, starting_portfolio_value)]
+    }
+    portfolio16 = {
+        "name": "threshold_0_equal_weights_top_30",
+        "portfolio":[(starting_date, starting_portfolio_value)]
+    }
+    portfolio17 = {
+        "name": "equal_weights_threshold_0",
+        "portfolio":[(starting_date, starting_portfolio_value)]
+    }
+    weighted_portfolios = [portfolio3, portfolio4, portfolio5, portfolio6]
 
 
     current_day = starting_date
@@ -163,7 +179,14 @@ def trade(year, save_dir="./"):
             current_day += timedelta(days=1)
             continue
 
-        # Strategy 1: Equal weights on top n predictions (ignores confidence)
+        # Strategy 0: Equal weights on top 10 predictions (ignores confidence)
+        top_n_prediction_rows = todays_predictions.nlargest(10, 'y_pred')
+        true_returns = np.array(top_n_prediction_rows['y_true'].values) + 1
+        new_portfolio_value = (true_returns * (portfolio0['portfolio'][-1][1] / 30)).sum()
+        portfolio0['portfolio'].append((current_day, new_portfolio_value))
+
+
+        # Strategy 1: Equal weights on top 30 predictions (ignores confidence)
         top_n_prediction_rows = todays_predictions.nlargest(30, 'y_pred')
         true_returns = np.array(top_n_prediction_rows['y_true'].values) + 1
         new_portfolio_value = (true_returns * (portfolio1['portfolio'][-1][1] / 30)).sum()
@@ -177,16 +200,15 @@ def trade(year, save_dir="./"):
             new_portfolio_value = (true_returns * (portfolio2['portfolio'][-1][1] / len(true_returns))).sum()
             portfolio2['portfolio'].append((current_day, new_portfolio_value))
 
-        #Strategy 3-8: Weighted top predictions
-        for weighted_portfolios_segment in [weighted_portfolios[:3], weighted_portfolios[3:]]:
-            for  portfolio, top_n in zip(weighted_portfolios_segment, [10, 30, 50]):
-                candidates = todays_predictions[todays_predictions['y_pred'] > .005]
-                if not candidates.empty:
-                    candidates = candidates.nlargest(top_n, 'y_pred')
-                    weights = np.array(candidates['y_pred'] / candidates['y_pred'].sum())
-                    true_returns = np.array(candidates['y_true'].values) + 1
-                    new_portfolio_value = (true_returns * (weights * portfolio['portfolio'][-1][1])).sum()
-                    portfolio['portfolio'].append((current_day, new_portfolio_value))
+        #Strategy 3-6: Weighted top predictions
+        for  portfolio, top_n in zip(weighted_portfolios, [10, 30, 50, 1000]):
+            candidates = todays_predictions[todays_predictions['y_pred'] > 0]
+            if not candidates.empty:
+                candidates = candidates.nlargest(top_n, 'y_pred')
+                weights = np.array(candidates['y_pred'] / candidates['y_pred'].sum())
+                true_returns = np.array(candidates['y_true'].values) + 1
+                new_portfolio_value = (true_returns * (weights * portfolio['portfolio'][-1][1])).sum()
+                portfolio['portfolio'].append((current_day, new_portfolio_value))
 
         # Strategy 9: Ultra-high confidence threshold (0.15%)
         candidates = todays_predictions[todays_predictions['y_pred'] > .0015]
@@ -236,11 +258,46 @@ def trade(year, save_dir="./"):
             new_portfolio_value = (true_returns * (weights * portfolio12['portfolio'][-1][1])).sum()
             portfolio12['portfolio'].append((current_day, new_portfolio_value))
 
+        # Strategy 13: Equal weights on top 20 predictions (ignores confidence)
+        top_n_prediction_rows = todays_predictions.nlargest(20, 'y_pred')
+        true_returns = np.array(top_n_prediction_rows['y_true'].values) + 1
+        new_portfolio_value = (true_returns * (portfolio13['portfolio'][-1][1] / 30)).sum()
+        portfolio13['portfolio'].append((current_day, new_portfolio_value))
 
+        # Strategy 14: Equal weights with 0 threshold, top 10
+        candidates = todays_predictions[todays_predictions['y_pred'] > 0]
+        if not candidates.empty:
+            candidates = candidates.nlargest(10, 'y_pred')
+            true_returns = np.array(candidates['y_true'].values) + 1
+            new_portfolio_value = (true_returns * (portfolio14['portfolio'][-1][1] / len(true_returns))).sum()
+            portfolio14['portfolio'].append((current_day, new_portfolio_value))
 
+        # Strategy 15: Equal weights with 0 threshold, top 20
+        candidates = todays_predictions[todays_predictions['y_pred'] > 0]
+        if not candidates.empty:
+            candidates = candidates.nlargest(20, 'y_pred')
+            true_returns = np.array(candidates['y_true'].values) + 1
+            new_portfolio_value = (true_returns * (portfolio15['portfolio'][-1][1] / len(true_returns))).sum()
+            portfolio15['portfolio'].append((current_day, new_portfolio_value))
+
+        # Strategy 16: Equal weights with 0 threshold, top 30
+        candidates = todays_predictions[todays_predictions['y_pred'] > 0]
+        if not candidates.empty:
+            candidates = candidates.nlargest(30, 'y_pred')
+            true_returns = np.array(candidates['y_true'].values) + 1
+            new_portfolio_value = (true_returns * (portfolio16['portfolio'][-1][1] / len(true_returns))).sum()
+            portfolio16['portfolio'].append((current_day, new_portfolio_value))
         current_day += timedelta(days=1)
 
-    portfolios = [portfolio1, portfolio2] + weighted_portfolios + [portfolio9, portfolio10, portfolio11, portfolio12]
+        #Strategy 17: Equal Weights on all predictions
+        candidates = todays_predictions[todays_predictions['y_pred'] > 0]
+        if not candidates.empty:
+            true_returns = np.array(candidates['y_true'].values) + 1
+            new_portfolio_value = (true_returns * (portfolio17['portfolio'][-1][1] / len(true_returns))).sum()
+            portfolio17['portfolio'].append((current_day, new_portfolio_value))
+        current_day += timedelta(days=1)
+
+    portfolios = [portfolio1, portfolio2] + weighted_portfolios + [portfolio9, portfolio10, portfolio11, portfolio12, portfolio13, portfolio14, portfolio15, portfolio16]
     return portfolios
 
 def metrics(year, portfolios, save_dir="./"):
@@ -261,10 +318,10 @@ def metrics(year, portfolios, save_dir="./"):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--lookback", type=int, default=5)
-    parser.add_argument("--retrain", type=bool, default=False)
+    parser.add_argument("--lookback", type=int, default=1)
+    parser.add_argument("--retrain", type=bool, default=True)
     parser.add_argument("--use-precomputed-df", type=bool, default=True)
-    parser.add_argument("--save-directory", type=str, default="./prediction_simulation/")
+    parser.add_argument("--save-directory", type=str, default="./backtest-1-year-lookback/")
     args = parser.parse_args()
 
     #Create save directory
