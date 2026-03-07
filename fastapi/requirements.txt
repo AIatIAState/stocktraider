@@ -22,3 +22,5 @@ lxml
 
 apscheduler
 tzdata
+xgboost-cpu
+openpyxl

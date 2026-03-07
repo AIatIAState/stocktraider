@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from connector import DB_PATH, get_connection
-from naive_nn import NaiveNN
+from xg_boost_investor import XGBoostInvestor, Features
 from pattern_recognition import get_dtw_patterns
 from forecasting import get_forecast
 from fetch_prices import update_daily_bars
@@ -37,6 +37,7 @@ from admin_jobs import (
 )
 from scheduled_updates import get_scheduler_status, set_scheduler_enabled, start_scheduler, stop_scheduler
 from weekly_dashboard import build_weekly_alerts, build_weekly_insights
+from xg_boost_investor.Features import build_full_features, get_feature_explanations
 
 DEFAULT_BOOTSTRAP_START = "2020-01-01"
 
@@ -444,8 +445,9 @@ def get_forecasts(symbol: str = Query(..., min_length=1),
         forecast_length = 7
     return get_forecast(symbol, timeframe, forecast_length)
 
-@app.get("/api/getMarketConditions")
+@app.get("/api/getCurrentTickerConditions")
 def get_market_conditions(symbol: str = Query(..., min_length=1)):
-    naive_nn = NaiveNN("", load_dir="model-v0")
-    market_conditions, buy = naive_nn.predict(symbol, datetime.datetime.today().date())
-    return {"market_conditions": market_conditions, "market_decision": buy}
+    today = datetime.datetime.today()
+    market_conditions, _ = build_full_features([symbol.replace(".US", "")], today, today)
+    feature_explanations = get_feature_explanations()
+    return {"market_conditions": market_conditions.iloc[-1].to_dict(), "feature_explanations": feature_explanations}
