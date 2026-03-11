@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import {useEffect, useState} from "react";
 import {
     fetchStockConditions,
     type ApiResponse,
@@ -15,9 +15,12 @@ import {
     Tooltip,
     useTheme,
     useMediaQuery,
-    Container, AccordionSummary, AccordionDetails, Accordion,
+    Container,
+    AccordionSummary,
+    AccordionDetails,
+    Accordion,
 } from "@mui/material";
-import { styled } from "@mui/material/styles";
+import {styled} from "@mui/material/styles";
 import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import VolatilityIcon from "@mui/icons-material/ChangeCircle";
 import VolumeIcon from "@mui/icons-material/ShowChart";
@@ -26,6 +29,7 @@ import Stack from "@mui/material/Stack";
 import {GradientCircularProgress} from "../GradientCircularProgress.tsx";
 import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
 import {formatSymbol} from "../../utils/formatSymbol.ts";
+import AnalyticsIcon from '@mui/icons-material/Analytics';
 
 interface StockConditionsProps {
     symbol: string;
@@ -47,10 +51,7 @@ interface MetricCategory {
     }>;
 }
 
-// Styled Components
-const GlassCard = styled(Card)(({ }) => ({
-    background: "rgba(255, 255, 255, 0.05)",
-    backdropFilter: "blur(10px)",
+const GlassCard = styled(Card)(({}) => ({
     border: "1px solid rgba(255, 255, 255, 0.1)",
     borderRadius: "12px",
     transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
@@ -62,7 +63,7 @@ const GlassCard = styled(Card)(({ }) => ({
     },
 }));
 
-const MetricValue = styled(Typography)(({ }) => ({
+const MetricValue = styled(Typography)(({}) => ({
     fontFamily: "'IBM Plex Mono', monospace",
     fontWeight: 600,
     fontSize: "1.25rem",
@@ -78,7 +79,7 @@ const MetricValue = styled(Typography)(({ }) => ({
     },
 }));
 
-const CategoryHeader = styled(Box)(({ }) => ({
+const CategoryHeader = styled(Box)(({}) => ({
     display: "flex",
     alignItems: "center",
     gap: "12px",
@@ -87,7 +88,7 @@ const CategoryHeader = styled(Box)(({ }) => ({
     borderBottom: "2px solid rgba(255, 255, 255, 0.1)",
 }));
 
-const MetricContainer = styled(Box)(({ }) => ({
+const MetricContainer = styled(Box)(({}) => ({
     padding: "16px",
     borderRadius: "8px",
     background: "rgba(255, 255, 255, 0.02)",
@@ -100,7 +101,7 @@ const MetricContainer = styled(Box)(({ }) => ({
 }));
 
 
-const CategorySection = styled(Box)(({ }) => ({
+const CategorySection = styled(Box)(({}) => ({
     animation: "fadeInUp 0.6s ease-out",
     "@keyframes fadeInUp": {
         from: {
@@ -114,7 +115,6 @@ const CategorySection = styled(Box)(({ }) => ({
     },
 }));
 
-// Format value for display
 const formatValue = (value: any): string => {
     if (typeof value === "number") {
         if (Math.abs(value) < 0.01 && value !== 0) {
@@ -128,7 +128,6 @@ const formatValue = (value: any): string => {
     return String(value);
 };
 
-// Determine color based on value
 const getValueColor = (value: any): string => {
     if (typeof value !== "number") return "rgba(255, 255, 255, 0.7)";
     if (value > 0) return "#4ade80";
@@ -139,89 +138,89 @@ const getValueColor = (value: any): string => {
 const metricCategories: MetricCategory[] = [
     {
         title: "Momentum",
-        icon: <TrendingUpIcon sx={{ fontSize: 24 }} />,
+        icon: <TrendingUpIcon sx={{fontSize: 24}}/>,
         color: "#60a5fa",
         metrics: [
-            { key: "ret_1d", label: "1-Day Return" },
-            { key: "ret_5d", label: "5-Day Return" },
-            { key: "ret_10d", label: "10-Day Return" },
-            { key: "ret_20d", label: "20-Day Return" },
-            { key: "ret_60d", label: "60-Day Return" },
-            { key: "ret_120d", label: "120-Day Return" },
-            { key: "ret_252d", label: "252-Day Return" },
-            { key: "momentum_12_1", label: "12M-1M Momentum" },
+            {key: "ret_1d", label: "1-Day Return"},
+            {key: "ret_5d", label: "5-Day Return"},
+            {key: "ret_10d", label: "10-Day Return"},
+            {key: "ret_20d", label: "20-Day Return"},
+            {key: "ret_60d", label: "60-Day Return"},
+            {key: "ret_120d", label: "120-Day Return"},
+            {key: "ret_252d", label: "252-Day Return"},
+            {key: "momentum_12_1", label: "12M-1M Momentum"},
         ],
     },
     {
         title: "Volatility",
-        icon: <VolatilityIcon sx={{ fontSize: 24 }} />,
+        icon: <VolatilityIcon sx={{fontSize: 24}}/>,
         color: "#f97316",
         metrics: [
-            { key: "realized_vol_20d", label: "20-Day Realized Vol" },
-            { key: "realized_vol_60d", label: "60-Day Realized Vol" },
-            { key: "realized_vol_120d", label: "120-Day Realized Vol" },
-            { key: "downside_vol_60d", label: "60-Day Downside Vol" },
-            { key: "atr_14d", label: "14-Day ATR" },
-            { key: "hl_range_10d", label: "10-Day High-Low Range" },
+            {key: "realized_vol_20d", label: "20-Day Realized Vol"},
+            {key: "realized_vol_60d", label: "60-Day Realized Vol"},
+            {key: "realized_vol_120d", label: "120-Day Realized Vol"},
+            {key: "downside_vol_60d", label: "60-Day Downside Vol"},
+            {key: "atr_14d", label: "14-Day ATR"},
+            {key: "hl_range_10d", label: "10-Day High-Low Range"},
         ],
     },
     {
         title: "Macro Indicators",
-        icon: <CircleIcon sx={{ fontSize: 24 }} />,
+        icon: <CircleIcon sx={{fontSize: 24}}/>,
         color: "#14b8a6",
         metrics: [
-            { key: "TY10Y", label: "10-Year Treasury Yield" },
-            { key: "TY2Y", label: "2-Year Treasury Yield" },
-            { key: "CPI", label: "CPI" },
-            { key: "UnemploymentRate", label: "Unemployment Rate" },
-            { key: "FedFunds", label: "Federal Funds Rate" },
-            { key: "IndustrialProduction", label: "Industrial Production" },
-            { key: "RetailMoneyMarketFunds", label: "Money Market Funds" },
+            {key: "TY10Y", label: "10-Year Treasury Yield"},
+            {key: "TY2Y", label: "2-Year Treasury Yield"},
+            {key: "CPI", label: "CPI"},
+            {key: "UnemploymentRate", label: "Unemployment Rate"},
+            {key: "FedFunds", label: "Federal Funds Rate"},
+            {key: "IndustrialProduction", label: "Industrial Production"},
+            {key: "RetailMoneyMarketFunds", label: "Money Market Funds"},
         ],
     },
     {
         title: "Moving Averages",
-        icon: <CircleIcon sx={{ fontSize: 24 }} />,
+        icon: <CircleIcon sx={{fontSize: 24}}/>,
         color: "#a78bfa",
         metrics: [
-            { key: "ma_dist_20d", label: "20-Day MA Distance" },
-            { key: "ma_dist_60d", label: "60-Day MA Distance" },
-            { key: "ma_dist_200d", label: "200-Day MA Distance" },
-            { key: "pct_above_50d", label: "% Above 50-Day MA" },
-            { key: "pct_above_200d", label: "% Above 200-Day MA" },
+            {key: "ma_dist_20d", label: "20-Day MA Distance"},
+            {key: "ma_dist_60d", label: "60-Day MA Distance"},
+            {key: "ma_dist_200d", label: "200-Day MA Distance"},
+            {key: "pct_above_50d", label: "% Above 50-Day MA"},
+            {key: "pct_above_200d", label: "% Above 200-Day MA"},
         ],
     },
     {
         title: "Volume & Liquidity",
-        icon: <VolumeIcon sx={{ fontSize: 24 }} />,
+        icon: <VolumeIcon sx={{fontSize: 24}}/>,
         color: "#06b6d4",
         metrics: [
-            { key: "volume_zscore_20d", label: "Volume Z-Score (20d)" },
-            { key: "volume_trend_slope_60d", label: "Volume Trend Slope" },
-            { key: "dollar_vol_20d", label: "Dollar Volume Ratio" },
-            { key: "volume_spike_ratio_20d", label: "Volume Spike Ratio" },
+            {key: "volume_zscore_20d", label: "Volume Z-Score (20d)"},
+            {key: "volume_trend_slope_60d", label: "Volume Trend Slope"},
+            {key: "dollar_vol_20d", label: "Dollar Volume Ratio"},
+            {key: "volume_spike_ratio_20d", label: "Volume Spike Ratio"},
         ],
     },
     {
         title: "Market Metrics",
-        icon: <CircleIcon sx={{ fontSize: 24 }} />,
+        icon: <CircleIcon sx={{fontSize: 24}}/>,
         color: "#ec4899",
         metrics: [
-            { key: "beta_spy_60d", label: "Beta vs SPY (60d)" },
-            { key: "put_call_ratio", label: "Put/Call Ratio" },
-            { key: "adv_decl_ratio", label: "Advance/Decline Ratio" },
-            { key: "new_52w_high_low", label: "52-Week High/Low" },
+            {key: "beta_spy_60d", label: "Beta vs SPY (60d)"},
+            {key: "put_call_ratio", label: "Put/Call Ratio"},
+            {key: "adv_decl_ratio", label: "Advance/Decline Ratio"},
+            {key: "new_52w_high_low", label: "52-Week High/Low"},
         ],
     },
     {
         title: "Market Conditions",
-        icon: <CircleIcon sx={{ fontSize: 24 }} />,
+        icon: <CircleIcon sx={{fontSize: 24}}/>,
         color: "#8b5cf6",
         metrics: [
-            { key: "VIX_5d_chg", label: "VIX 5-Day Change" },
-            { key: "VIX_20d_chg", label: "VIX 20-Day Change" },
-            { key: "VIX_term_structure", label: "VIX Term Structure" },
-            { key: "VIX_realized_vol_ratio_20d", label: "VIX/Realized Vol Ratio" },
+            {key: "VIX_5d_chg", label: "VIX 5-Day Change"},
+            {key: "VIX_20d_chg", label: "VIX 20-Day Change"},
+            {key: "VIX_term_structure", label: "VIX Term Structure"},
+            {key: "VIX_realized_vol_ratio_20d", label: "VIX/Realized Vol Ratio"},
         ],
     },
 ];
@@ -237,11 +236,11 @@ export function StockConditions(props: StockConditionsProps) {
     useMediaQuery(theme.breakpoints.down("md"));
     useEffect(() => {
         if (props.symbol === "") {
-            setConditions({ data: null, loading: false, error: null });
+            setConditions({data: null, loading: false, error: null});
             return;
         }
 
-        setConditions((prev) => ({ ...prev, loading: true, error: null }));
+        setConditions((prev) => ({...prev, loading: true, error: null}));
 
         fetchStockConditions(props.symbol)
             .then((response: ApiResponse) => {
@@ -263,11 +262,11 @@ export function StockConditions(props: StockConditionsProps) {
 
     if (conditions.loading) {
         return (
-            <Card sx={{ borderRadius: 3 }}>
+            <Card sx={{borderRadius: 3}}>
                 <CardContent>
                     <Stack direction="row" alignItems="center" spacing={2}>
                         <Typography variant="h4">Stock Indicators</Typography>
-                        <GradientCircularProgress />
+                        <GradientCircularProgress/>
                     </Stack>
                 </CardContent>
             </Card>
@@ -276,7 +275,7 @@ export function StockConditions(props: StockConditionsProps) {
 
     if (conditions.error) {
         return (
-            <Card sx={{ borderRadius: 3 }}>
+            <Card sx={{borderRadius: 3}}>
                 <CardContent>
                     <Stack direction="row" alignItems="center" spacing={2}>
                         <Typography variant="h4">Stock Indicators</Typography>
@@ -293,7 +292,8 @@ export function StockConditions(props: StockConditionsProps) {
         return (<></>);
     }
 
-    const { market_conditions, feature_explanations } = conditions.data;
+    const {market_conditions, feature_explanations} = conditions.data;
+    const xgboostPrediction = conditions.data.prediction;
     const featureLookup = createFeatureExplanationMap(feature_explanations);
 
     const renderMetricRow = (metric: { key: string; label: string }) => {
@@ -307,11 +307,11 @@ export function StockConditions(props: StockConditionsProps) {
                 key={metric.key}
                 title={
                     feature ? (
-                        <Box sx={{ p: 1 }}>
-                            <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5 }}>
+                        <Box sx={{p: 1}}>
+                            <Typography variant="subtitle2" sx={{fontWeight: 600, mb: 0.5}}>
                                 {feature.name}
                             </Typography>
-                            <Typography variant="caption" sx={{ lineHeight: 1.6 }}>
+                            <Typography variant="caption" sx={{lineHeight: 1.6}}>
                                 {feature.description}
                             </Typography>
                         </Box>
@@ -332,7 +332,7 @@ export function StockConditions(props: StockConditionsProps) {
                 }}
             >
                 <MetricContainer>
-                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <Box sx={{display: "flex", justifyContent: "space-between", alignItems: "center"}}>
                         <Typography
                             variant="body2"
                             sx={{
@@ -345,7 +345,7 @@ export function StockConditions(props: StockConditionsProps) {
                         >
                             {metric.label}
                         </Typography>
-                        <MetricValue sx={{ color }}>
+                        <MetricValue sx={{color}}>
                             {formattedValue}
                         </MetricValue>
                     </Box>
@@ -362,12 +362,12 @@ export function StockConditions(props: StockConditionsProps) {
                 border: '1px solid',
                 borderColor: 'divider',
                 borderRadius: '12px !important',
-                '&::before': { display: 'none' },
+                '&::before': {display: 'none'},
             }}
         >
             <AccordionSummary
-                expandIcon={<ExpandMoreRoundedIcon sx={{ color: 'text.secondary' }} />}
-                sx={{ px: 3, py: 1 }}
+                expandIcon={<ExpandMoreRoundedIcon sx={{color: 'text.secondary'}}/>}
+                sx={{px: 3, py: 1}}
             >
                 <Stack direction="row" alignItems="center" spacing={2} flexWrap="wrap">
                     <Typography variant="h4">Stock Indicators</Typography>
@@ -376,42 +376,120 @@ export function StockConditions(props: StockConditionsProps) {
                     </Typography>
                 </Stack>
             </AccordionSummary>
-            <AccordionDetails sx={{ px: 3, pb: 3 }}>
-            <Container maxWidth="xl" sx={{ py: 4, pb: 8 }}>
-                <Grid container spacing={2} direction={'row'}>
-                    {metricCategories.map((category, idx) => (
-                        <Grid key={idx}>
-                            <CategorySection style={{ animationDelay: `${idx * 0.05}s` }}>
-                                <GlassCard>
-                                    <CardContent sx={{ p: 3 }}>
-                                        {/* Category Header */}
-                                        <CategoryHeader sx={{ color: category.color }}>
-                                            {category.icon}
-                                            <Typography
-                                                variant="h6"
-                                                sx={{
-                                                    fontWeight: 600,
-                                                    fontSize: "1.1rem",
-                                                    letterSpacing: "0.5px",
-                                                }}
-                                            >
-                                                {category.title}
-                                            </Typography>
-                                        </CategoryHeader>
+            <AccordionDetails sx={{px: 3, pb: 3}}>
+                <Container maxWidth="xl" sx={{py: 4, pb: 8}}>
+                    <CategorySection style={{animationDelay: `${0}s`, paddingBottom: 16, maxWidth: '70%', alignSelf: 'center'}}>
+                        <GlassCard>
+                            <CardContent sx={{p: 3}}>
+                                <CategoryHeader sx={{color: 'green'}}>
+                                    <AnalyticsIcon/>
+                                    <Typography
+                                        variant="h6"
+                                        sx={{
+                                            fontWeight: 600,
+                                            fontSize: "1.1rem",
+                                            letterSpacing: "0.5px",
+                                        }}
+                                    >
+                                        XGBoostRegressor
+                                    </Typography>
+                                </CategoryHeader>
+                                <Box sx={{display: "flex", flexDirection: "column", gap: 1.5}}>
+                                    <Tooltip
+                                        key={'xgboost'}
+                                        title={
+                                            <Box sx={{p: 1}}>
+                                                <Typography variant="subtitle2"
+                                                            sx={{fontWeight: 600, mb: 0.5}}>
+                                                    XGBoostRegressor
+                                                </Typography>
+                                                <Typography variant="caption" sx={{lineHeight: 1.6}}>
+                                                    Using the stock indicators as features, an ML regression
+                                                    model was trained over 2 years of recent historical data
+                                                    to estimate the return on investment for the upcoming
+                                                    closing price.
+                                                </Typography>
+                                            </Box>
+                                        }
+                                        arrow
+                                        placement="right"
+                                        sx={{
+                                            "& .MuiTooltip-tooltip": {
+                                                background: "rgba(0, 0, 0, 0.9)",
+                                                backdropFilter: "blur(10px)",
+                                                border: "1px solid rgba(255, 255, 255, 0.1)",
+                                                borderRadius: "8px",
+                                                maxWidth: "300px",
+                                            },
+                                        }}
+                                    >
+                                        <MetricContainer>
+                                            <Box sx={{
+                                                display: "flex",
+                                                justifyContent: "space-between",
+                                                alignItems: "center"
+                                            }}>
+                                                <Typography
+                                                    variant="body2"
+                                                    sx={{
+                                                        color: "rgba(255, 255, 255, 0.7)",
+                                                        fontSize: "0.9rem",
+                                                        textTransform: "uppercase",
+                                                        letterSpacing: "0.5px",
+                                                        fontWeight: 500,
+                                                    }}
+                                                >
+                                                    Upcoming Estimated Closing Return
+                                                </Typography>
+                                                <MetricValue sx={{color: xgboostPrediction > 0 ? 'green': 'red'}}>
+                                                    {xgboostPrediction > 0 ? '+': '-'}{xgboostPrediction.toFixed(4)}{'%'}
+                                                </MetricValue>
+                                            </Box>
+                                        </MetricContainer>
 
-                                        {/* Metrics */}
-                                        <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
-                                            {category.metrics.map((metric) =>
-                                                renderMetricRow(metric)
-                                            )}
-                                        </Box>
-                                    </CardContent>
-                                </GlassCard>
-                            </CategorySection>
-                        </Grid>
-                    ))}
-                </Grid>
-            </Container>
+                                    </Tooltip>
+                                </Box>
+                            </CardContent>
+                        </GlassCard>
+                    </CategorySection>
+                    <Grid container spacing={2} direction={'row'}>
+                        {metricCategories.map((category, idx) => (
+                            <Grid key={idx}>
+                                <CategorySection style={{animationDelay: `${idx * 0.05}s`}}>
+                                    <GlassCard>
+                                        <CardContent sx={{p: 3}}>
+                                            {/* Category Header */}
+                                            <CategoryHeader sx={{color: category.color}}>
+                                                {category.icon}
+                                                <Typography
+                                                    variant="h6"
+                                                    sx={{
+                                                        fontWeight: 600,
+                                                        fontSize: "1.1rem",
+                                                        letterSpacing: "0.5px",
+                                                    }}
+                                                >
+                                                    {category.title}
+                                                </Typography>
+                                            </CategoryHeader>
+
+                                            {/* Metrics */}
+                                            <Box sx={{
+                                                display: "flex",
+                                                flexDirection: "column",
+                                                gap: 1.5
+                                            }}>
+                                                {category.metrics.map((metric) =>
+                                                    renderMetricRow(metric)
+                                                )}
+                                            </Box>
+                                        </CardContent>
+                                    </GlassCard>
+                                </CategorySection>
+                            </Grid>
+                        ))}
+                    </Grid>
+                </Container>
             </AccordionDetails>
         </Accordion>
     );

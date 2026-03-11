@@ -1,3 +1,5 @@
+import os
+
 import yfinance as yf
 import pandas as pd
 import numpy as np
@@ -105,11 +107,18 @@ fred_series = {
     "WRMFNS": "RetailMoneyMarketFunds",
 }
 
-@lru_cache(maxsize=32)
-def fetch_fred_data(series_id, name, start_date, end_date):
+def fetch_fred_data(series_id, name, save_load=True):
+    if os.path.exists(f'{name}_fred.csv') and save_load:
+        cached_fred_data = pd.read_csv(f'{name}_fred.csv')
+        cached_fred_data["Date"] = pd.to_datetime(cached_fred_data["Date"], format="%Y-%m-%d")
+        cached_fred_data = cached_fred_data[["Date", name]]
+
+        cached_fred_data.set_index("Date", inplace=True)
+        cached_fred_data.sort_index(inplace=True)
+        return cached_fred_data[name]
     try:
         url = f"https://api.stlouisfed.org/fred/series/observations?series_id={series_id}&api_key={FRED_API_KEY}&file_type=json"
-        response = requests.get(url, timeout=10)
+        response = requests.get(url, timeout=30)
         r = response.json()
 
         if 'error_code' in r:
@@ -117,20 +126,31 @@ def fetch_fred_data(series_id, name, start_date, end_date):
             return None
 
         data = pd.DataFrame(r["observations"])
+
         data["Date"] = pd.to_datetime(data["date"], format="%Y-%m-%d")
         data[name] = pd.to_numeric(data["value"], errors='coerce')
-        data.drop(columns=["realtime_start", "realtime_end", "date", "value"], inplace=True)
+
+        data = data[["Date", name]]
+
         data.set_index("Date", inplace=True)
-        data.loc[pd.Timestamp(end_date)] = np.nan
+        data.sort_index(inplace=True)
+
+        date_range_start = data.index.min()
+        date_range_end = date.today()
+
+        # Pad data for missing dates
+        full_date_range = pd.date_range(start=date_range_start, end=date_range_end, freq='D')
+        data = data.reindex(full_date_range)
+        data[name] = data[name].ffill()
+
+        data.index.name = "Date"
+
+        data[name].to_csv(f'{name}_fred.csv')
 
     except Exception as e:
         print(f"Failed to fetch FRED data for {series_id}: {e}")
         return None
 
-    # Pad data for missing dates
-    full_date_range = pd.date_range(start=data.index.min(), end=data.index.max(),freq='D')
-    data = data.reindex(full_date_range, columns=[name], method='ffill')
-    data = data.fillna(method="ffill")
 
     return data[name]
 
@@ -334,7 +354,7 @@ def time_embeddings(start_date, end_date):
 
 
 
-def build_full_features(tickers, start_date=date(2021, 1, 1), end_date=date(2024, 1, 1), explainable=False):
+def build_full_features(tickers, start_date=date(2021, 1, 1), end_date=date(2024, 1, 1), explainable=False, alias_tag=None, save_fred=True):
 
     before_start_date = start_date - timedelta(days=400)
     after_end_date = end_date + timedelta(days=10)
@@ -385,7 +405,10 @@ def build_full_features(tickers, start_date=date(2021, 1, 1), end_date=date(2024
         #YFinance returns NaN for most tickers (not all stocks have recommendations)
         feat['put_call_ratio'] = feat['put_call_ratio'].fillna(-1)
 
-        feat['ticker'] = ticker + '_' + str(start_date.year)
+        tag = '_' + str(start_date.year)
+        if alias_tag is not None:
+            tag = '_' + str(alias_tag)
+        feat['ticker'] = ticker + tag
         feat.reset_index(inplace=True)
         feat.rename(columns={'index': 'Date'}, inplace=True)
         feature_list.append(feat)
@@ -420,7 +443,7 @@ def build_full_features(tickers, start_date=date(2021, 1, 1), end_date=date(2024
 
     # ---- Macro Features ----
     for sid, name in fred_series.items():
-        macro_df = fetch_fred_data(sid, name, start_date, end_date)
+        macro_df = fetch_fred_data(sid, name, save_fred)
         if macro_df is not None:
             features = features.merge(macro_df, left_on="Date", right_index=True, how="left")
 

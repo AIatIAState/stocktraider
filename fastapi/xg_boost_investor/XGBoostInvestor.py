@@ -1,5 +1,5 @@
 import pickle
-from random import shuffle
+from datetime import timedelta, date, datetime
 
 import numpy as np
 import pandas as pd
@@ -9,6 +9,9 @@ from sklearn.preprocessing import RobustScaler
 import warnings
 
 from xgboost import XGBRegressor
+
+from xg_boost_investor.Features import build_full_features, get_feature_explanations
+from xg_boost_investor.symbol_collector import get_sp500_at_date
 
 warnings.filterwarnings('ignore')
 
@@ -203,7 +206,6 @@ class XGBoostInvestor:
             pickle.dump(self.calibrator, file, protocol=pickle.HIGHEST_PROTOCOL)
 
     def load(self, filepath):
-
         with open(filepath + '_model.pkl', 'rb') as file:
             self.model = pickle.load(file)
 
@@ -219,3 +221,69 @@ class XGBoostInvestor:
         with open(filepath + '_calibrator.pkl', 'rb') as file:
             self.calibrator = pickle.load(file)
 
+
+
+def retrain_model(save_dir='./model_save', start_date=date.today()):
+
+    quarterly_features = None
+    quarterly_targets = None
+    model_path = f'{save_dir}/model/xgboost_investor'
+    data_dir = f'{save_dir}/data/'
+
+
+    for i in reversed(range(8)):
+        feature_file_save = f"{data_dir}feature_dataset_{i + 1}.csv"
+        target_file_save = f"{data_dir}target_series_{i + 1}.csv"
+
+        #Take chunks by quarters, collecting new tickers
+        start_training_date = start_date - timedelta(days=((365 / 4) * (i + 1)))
+        end_training_date = start_training_date + timedelta(days=((365 / 4)))
+
+        tickers = get_sp500_at_date(start_training_date)
+        features, target = build_full_features(
+            tickers,
+            start_date=start_training_date,
+            end_date=end_training_date,
+            alias_tag=i,
+            save_fred=True
+        )
+        target.to_csv(target_file_save, index=False)
+        features.to_csv(feature_file_save, index=False)
+
+        features = pd.read_csv(feature_file_save)
+        target = pd.read_csv(target_file_save)
+
+        if quarterly_features is None:
+            quarterly_features = features
+            quarterly_targets = target
+        else:
+            quarterly_features = pd.concat([quarterly_features, features], ignore_index=True)
+            quarterly_targets = pd.concat([quarterly_targets, target], ignore_index=True)
+
+
+    model = XGBoostInvestor()
+
+    X_train, y_train = model.prepare_training(quarterly_features, quarterly_targets)
+    model.train(X_train, y_train)
+
+    # Calibrate on last 20% of training data
+    split_idx = int(len(X_train) * 0.8)
+    model.calibrate(X_train[split_idx:], y_train[split_idx:])
+
+    model.save(model_path)
+
+if __name__ == "__main__":
+    retrain_model()
+    symbol = "AAPL"
+    today = date.today()
+    market_conditions, _ = build_full_features([symbol.replace(".US", "")], today, today)
+    feature_explanations = get_feature_explanations()
+    xgboost = XGBoostInvestor()
+    xgboost.load('model_save/model/xgboost_investor')
+    market_conditions_df = pd.DataFrame(market_conditions)
+    market_conditions_df = market_conditions_df.reset_index(drop=True)
+    X_test, _, _, _ = xgboost.prepare_predictions(market_conditions_df, pd.DataFrame([{'ret_1d': 0}]))
+    prediction = xgboost.predict(X_test)
+
+    print({"market_conditions": market_conditions.iloc[-1].to_dict(), "feature_explanations": feature_explanations,
+            "prediction": float(prediction[0])})

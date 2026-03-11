@@ -1,6 +1,7 @@
 import {
     Accordion, AccordionDetails,
     AccordionSummary, Button, Card, CardContent,
+    Container,
     Paper,
     Table, TableBody,
     TableCell,
@@ -120,6 +121,7 @@ function SimilarCharts(props: SimilarChartsProps){
                     </Stack>
                         </AccordionSummary>
                 <AccordionDetails sx={{ px: 3, pb: 3 }}>
+                    <Container maxWidth="xl" sx={{ py: 4, pb: 8 }}>
                         <Box sx={{ display: "flex", justifyContent: "flex-end", p: 2 }}>
                             <Stack direction="row" style={{paddingBottom:'16px'}}>
                                 <Button value="previous" disabled={patternPageIndex === 0} onClick={() => setPatternPageIndex(patternPageIndex - 1)}>Previous</Button>
@@ -155,6 +157,7 @@ function SimilarCharts(props: SimilarChartsProps){
                                 </TableBody>
                             </Table>
                         </TableContainer>
+                    </Container>
                 </AccordionDetails>
                     </Accordion>}
     </>

@@ -4,6 +4,7 @@ import os
 import sqlite3
 from datetime import timedelta
 
+import pandas as pd
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -38,6 +39,7 @@ from admin_jobs import (
 from scheduled_updates import get_scheduler_status, set_scheduler_enabled, start_scheduler, stop_scheduler
 from weekly_dashboard import build_weekly_alerts, build_weekly_insights
 from xg_boost_investor.Features import build_full_features, get_feature_explanations
+from xg_boost_investor.XGBoostInvestor import retrain_model
 
 DEFAULT_BOOTSTRAP_START = "2020-01-01"
 
@@ -447,7 +449,14 @@ def get_forecasts(symbol: str = Query(..., min_length=1),
 
 @app.get("/api/getCurrentTickerConditions")
 def get_market_conditions(symbol: str = Query(..., min_length=1)):
-    today = datetime.datetime.today()
+    today = datetime.date.today()
     market_conditions, _ = build_full_features([symbol.replace(".US", "")], today, today)
     feature_explanations = get_feature_explanations()
-    return {"market_conditions": market_conditions.iloc[-1].to_dict(), "feature_explanations": feature_explanations}
+    xgboost = XGBoostInvestor.XGBoostInvestor()
+    xgboost.load('xg_boost_investor/model_save/model/xgboost_investor')
+    market_conditions_df = pd.DataFrame(market_conditions)
+    market_conditions_df = market_conditions_df.reset_index(drop=True)
+    X_test, _, _, _ = xgboost.prepare_predictions(market_conditions_df, pd.DataFrame([{'ret_1d': 0}]))
+    prediction = xgboost.predict(X_test)
+    return {"market_conditions": market_conditions.iloc[-1].to_dict(), "feature_explanations": feature_explanations,
+            "prediction": float(prediction[0])}
