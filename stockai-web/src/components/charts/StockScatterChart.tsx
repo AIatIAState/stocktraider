@@ -99,7 +99,13 @@ export default function StockScatterChart(props: StockScatterChartProps) {
               }
             },
           ]}
-          yAxis={[{ max:max + 1, min:min - 1 > 0 ? min - 1 : 0}]}
+          yAxis={[{
+              max:max + 1,
+              min:min - 1 > 0 ? min - 1 : 0,
+              valueFormatter: (value: number) => {
+                  return value.toFixed(2)
+              }
+          }]}
           series={[{
               id: symbol,
               label: displaySymbol,
