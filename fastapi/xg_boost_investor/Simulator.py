@@ -33,7 +33,8 @@ def simulate_year(year, look_back, precompute=True, data_dir='./', model_dir='./
             features, target = build_full_features(
                 tickers,
                 start_date=date(year - 1 - i, 1, 1),
-                end_date=date(year - i, 1, 1)
+                end_date=date(year - i, 1, 1),
+                save_fred=True
             )
             target.to_csv(target_file_save, index=False)
             features.to_csv(feature_file_save, index=False)
@@ -78,7 +79,8 @@ def simulate_year(year, look_back, precompute=True, data_dir='./', model_dir='./
         features, target = build_full_features(
             tickers,
             start_date=date(year, 1, 1),
-            end_date=date(year + 1, 1, 1)
+            end_date=date(year + 1, 1, 1),
+            save_fred=True
         )
         target.to_csv(target_file_save, index=False)
         features.to_csv(feature_file_save, index=False)

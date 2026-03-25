@@ -1,6 +1,7 @@
 import {
-    Accordion,
+    Accordion, AccordionDetails,
     AccordionSummary, Button, Card, CardContent,
+    Container,
     Paper,
     Table, TableBody,
     TableCell,
@@ -13,11 +14,11 @@ import {fetchStockPatterns, type StockPattern} from "../../services/StockPattern
 import {useEffect, useState} from "react";
 import type { Bar } from "../../services/api.ts";
 import {HistoricalPattern} from "./HistoricalPattern.tsx";
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import {GradientCircularProgress} from "../GradientCircularProgress.tsx";
 import { formatSymbol } from "../../utils/formatSymbol";
+import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
 
 interface SimilarChartsProps {
     symbol: string
@@ -74,16 +75,53 @@ function SimilarCharts(props: SimilarChartsProps){
     if(patterns === null && !loading){
         return <></>
     }
+    if (loading) {
+        return (
+            <Card sx={{ borderRadius: 3 }}>
+                <CardContent>
+                    <Stack direction="row" alignItems="center" spacing={2}>
+                        <Typography variant="h4">Historical Trend Analysis</Typography>
+                        <GradientCircularProgress />
+                    </Stack>
+                </CardContent>
+            </Card>
+        );
+    }
+    else if(patterns != null && patterns.length === 0){
+        return <Card sx={{ borderRadius: 3 }}>
+            <CardContent>
+                <Stack direction="row" alignItems="center" spacing={2}>
+                    <Typography variant="h4">Historical Trend Analysis</Typography>
+                    <Typography variant={'h6'}>This week's prices of {displaySymbol} stock is not mathematically aligned with historical data.</Typography>
+                </Stack>
+            </CardContent>
+        </Card>
+    }
     return <>
-        {loading ? <Card><CardContent><Stack direction={'row'} alignItems={'center'} spacing={2}><Typography variant={'h4'}>Historical Trend Analysis</Typography><GradientCircularProgress/></Stack></CardContent></Card> :
-                    patterns != null && patterns.length === 0 ? <Typography variant={'h6'}>This week's prices of {displaySymbol} stock is not mathematically aligned with historical data.</Typography> :
-                    <Accordion style={{padding:'16px'}}>
-                        <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                            <Stack direction={'row'} alignItems={'center'} spacing={2}>
-                                <Typography variant={'h4'}>Historical Trend Analysis</Typography>
-                                <Typography variant={'h6'}>View the most similar week segments of {displaySymbol} and the proceeding week's price adjustments</Typography>
-                            </Stack>
+        {
+            <Accordion
+                disableGutters
+                elevation={0}
+                sx={{
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    borderRadius: '12px !important',
+                    '&::before': { display: 'none' },
+                }}
+            >
+                <AccordionSummary
+                    expandIcon={<ExpandMoreRoundedIcon sx={{ color: 'text.secondary' }} />}
+                    sx={{ px: 3, py: 1 }}
+                >
+                    <Stack direction="row" alignItems="center" spacing={2} flexWrap="wrap">
+                        <Typography variant="h4">Historical Trend Analysis</Typography>
+                        <Typography variant="h6" color="text.secondary">
+                            View the most similar week segments of {displaySymbol}
+                        </Typography>
+                    </Stack>
                         </AccordionSummary>
+                <AccordionDetails sx={{ px: 3, pb: 3 }}>
+                    <Container maxWidth="xl" sx={{ py: 4, pb: 8 }}>
                         <Box sx={{ display: "flex", justifyContent: "flex-end", p: 2 }}>
                             <Stack direction="row" style={{paddingBottom:'16px'}}>
                                 <Button value="previous" disabled={patternPageIndex === 0} onClick={() => setPatternPageIndex(patternPageIndex - 1)}>Previous</Button>
@@ -119,6 +157,8 @@ function SimilarCharts(props: SimilarChartsProps){
                                 </TableBody>
                             </Table>
                         </TableContainer>
+                    </Container>
+                </AccordionDetails>
                     </Accordion>}
     </>
 }

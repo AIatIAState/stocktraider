@@ -1,10 +1,14 @@
 import {
-    Box, Button, Card, CardContent, Divider, Paper, Stack, Table, TableBody,
+    Accordion,
+    AccordionDetails,
+    AccordionSummary,
+    Box, Button, Container, Divider, Paper, Stack, Table, TableBody,
     TableCell, TableContainer, TableHead, TableRow, Typography
 } from "@mui/material";
 import type {Bar} from "../services/api.ts";
 import {useState} from "react";
 import { formatSymbol } from "../utils/formatSymbol";
+import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
 
 interface BarsTableProps {
     bars: Bar[]
@@ -38,11 +42,29 @@ export function BarsTable(props: BarsTableProps) {
         }
     })
 
-    return <Card>
-        <CardContent>
-            <Typography variant="h5" gutterBottom>
-                Recent bars
-            </Typography>
+    return <Accordion
+        disableGutters
+        elevation={0}
+        sx={{
+            border: '1px solid',
+            borderColor: 'divider',
+            borderRadius: '12px !important',
+            '&::before': { display: 'none' },
+        }}
+    >
+        <AccordionSummary
+            expandIcon={<ExpandMoreRoundedIcon sx={{ color: 'text.secondary' }} />}
+            sx={{ px: 3, py: 1 }}
+        >
+            <Stack direction="row" alignItems="center" spacing={2} flexWrap="wrap">
+                <Typography variant="h4">Recent Bars</Typography>
+                <Typography variant="h6" color="text.secondary">
+                    Fetched price history for {symbol}'s.
+                </Typography>
+            </Stack>
+        </AccordionSummary>
+        <AccordionDetails sx={{ px: 3, pb: 3 }}>
+            <Container maxWidth="xl" sx={{ py: 4, pb: 8 }}>
                 <Stack spacing={2}>
                     <Stack direction={{xs: 'column', sm: 'row'}} spacing={2} alignItems="center">
                         <Box>
@@ -63,7 +85,7 @@ export function BarsTable(props: BarsTableProps) {
                                     <Typography variant="body2" color="text.secondary">
                                         Last close
                                     </Typography>
-                                    <Typography variant="h6">{props.bars[props.bars.length - 1].close}</Typography>
+                                    <Typography variant="h6">{props.bars[props.bars.length - 1].close?.toFixed(2)}</Typography>
                                 </Box>
                                 <Box>
                                     <Typography variant="body2" color="text.secondary">
@@ -120,6 +142,7 @@ export function BarsTable(props: BarsTableProps) {
                             </Table>
                         </TableContainer>
                 </Stack>
-        </CardContent>
-    </Card>
+            </Container>
+        </AccordionDetails>
+    </Accordion>
 }
