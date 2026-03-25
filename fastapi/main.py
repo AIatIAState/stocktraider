@@ -371,18 +371,18 @@ def weekly_movers(
 
 
 @app.get("/api/weekly-insights")
-def weekly_insights():
-    return build_weekly_insights()
+def weekly_insights(end_date: str | None = None):
+    return build_weekly_insights(end_date=end_date)
 
 
 @app.post("/api/admin/weekly-insights/refresh")
-def weekly_insights_refresh():
-    return build_weekly_insights(force_refresh=True)
+def weekly_insights_refresh(end_date: str | None = None):
+    return build_weekly_insights(force_refresh=True, end_date=end_date)
 
 
 @app.get("/api/weekly-alerts")
-def weekly_alerts():
-    return build_weekly_alerts()
+def weekly_alerts(end_date: str | None = None):
+    return build_weekly_alerts(end_date=end_date)
 
 
 @app.get("/api/bars")

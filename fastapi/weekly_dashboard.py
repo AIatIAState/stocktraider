@@ -86,15 +86,19 @@ def _split_markdown_sections(text: str) -> dict[str, list[str]]:
     return sections
 
 
-def _get_weekly_range(conn):
-    row = conn.execute(
-        "SELECT MAX(date) AS max_date FROM bars WHERE timeframe = 'daily'"
-    ).fetchone()
-    if not row or row["max_date"] is None:
-        raise HTTPException(status_code=404, detail="No daily bars available")
-
-    end_int = row["max_date"]
-    end_date = date_int_to_date(end_int)
+def _get_weekly_range(conn, end_date_override: str | None = None):
+    if end_date_override:
+        from datetime import date as _date
+        end_date = _date.fromisoformat(end_date_override)
+        end_int = date_to_int(end_date)
+    else:
+        row = conn.execute(
+            "SELECT MAX(date) AS max_date FROM bars WHERE timeframe = 'daily'"
+        ).fetchone()
+        if not row or row["max_date"] is None:
+            raise HTTPException(status_code=404, detail="No daily bars available")
+        end_int = row["max_date"]
+        end_date = date_int_to_date(end_int)
     range_start = end_date - timedelta(days=6)
     range_start_int = date_to_int(range_start)
     row = conn.execute(
@@ -166,7 +170,7 @@ def _fetch_symbol_changes(conn, symbols: list[str], start_int: int, end_int: int
         pct_change = ((last_close - first_close) / first_close) * 100.0
         changes.append(
             {
-                "symbol": actual_symbol,
+                "symbol": _normalize_symbol(actual_symbol),
                 "first_close": first_close,
                 "last_close": last_close,
                 "pct_change": pct_change,
@@ -423,14 +427,14 @@ def _call_openai(
     return [], [], "OpenAI request failed after retries.", model, False, None
 
 
-def build_weekly_alerts() -> dict:
+def build_weekly_alerts(end_date: str | None = None) -> dict:
     limit = int(os.getenv("WEEKLY_ALERTS_LIMIT", "20"))
     core_target = int(os.getenv("WEEKLY_ALERTS_CORE_TARGET", "10"))
     top_target = int(os.getenv("WEEKLY_ALERTS_TOP_TARGET", "5"))
     bottom_target = int(os.getenv("WEEKLY_ALERTS_BOTTOM_TARGET", "5"))
     conn = get_connection(readonly=True)
     try:
-        start_int, end_int, start_date, end_date = _get_weekly_range(conn)
+        start_int, end_int, start_date, end_date = _get_weekly_range(conn, end_date)
         core_symbols = _get_core_symbols()
         core_changes = _fetch_symbol_changes(conn, core_symbols, start_int, end_int)
 
@@ -484,61 +488,68 @@ def build_weekly_alerts() -> dict:
             symbol = item["symbol"]
             item["series"] = series_map.get(symbol, [])
 
+        benchmark_symbols = _get_benchmark_symbols()
+        benchmark_changes = _fetch_symbol_changes(conn, benchmark_symbols, start_int, end_int)
+
         return {
             "start": start_date.isoformat(),
             "end": end_date.isoformat(),
             "alerts": alerts[:limit],
             "featured": featured,
+            "benchmarks": benchmark_changes,
         }
     finally:
         conn.close()
 
 
-def build_weekly_insights(force_refresh: bool = False) -> dict:
+def build_weekly_insights(force_refresh: bool = False, end_date: str | None = None) -> dict:
+    historical = end_date is not None
     conn = get_connection(readonly=True)
     try:
-        start_int, end_int, start_date, end_date = _get_weekly_range(conn)
+        start_int, end_int, start_date, end_date = _get_weekly_range(conn, end_date)
         events, events_note, sources = _load_events(start_date, end_date)
         events_sig = json.dumps(events, sort_keys=True)
 
-        now = time.time()
-        with INSIGHTS_CACHE_LOCK:
-            cached = INSIGHTS_CACHE
-            cooldown_until = float(cached.get("cooldown_until") or 0.0)
-            if not force_refresh:
-                if (
-                    cached["end_int"] == end_int
-                    and cached["events_sig"] == events_sig
-                    and (now - cached["timestamp"]) < INSIGHTS_CACHE_TTL_SECONDS
-                ):
-                    payload = cached["payload"]
-                    if isinstance(payload, dict):
-                        note = payload.get("note")
-                        if note:
-                            if now < cooldown_until:
+        # Skip cache and cooldown logic for historical (eval) requests
+        if not historical:
+            now = time.time()
+            with INSIGHTS_CACHE_LOCK:
+                cached = INSIGHTS_CACHE
+                cooldown_until = float(cached.get("cooldown_until") or 0.0)
+                if not force_refresh:
+                    if (
+                        cached["end_int"] == end_int
+                        and cached["events_sig"] == events_sig
+                        and (now - cached["timestamp"]) < INSIGHTS_CACHE_TTL_SECONDS
+                    ):
+                        payload = cached["payload"]
+                        if isinstance(payload, dict):
+                            note = payload.get("note")
+                            if note:
+                                if now < cooldown_until:
+                                    return payload
+                            else:
                                 return payload
-                        else:
-                            return payload
 
-            if now < cooldown_until:
-                payload = cached.get("payload")
-                if isinstance(payload, dict):
-                    return payload
+                if now < cooldown_until:
+                    payload = cached.get("payload")
+                    if isinstance(payload, dict):
+                        return payload
 
-            last_attempt = float(cached.get("last_openai_attempt") or 0.0)
-            if (now - last_attempt) < OPENAI_MIN_INTERVAL_SECONDS:
-                remaining = int(OPENAI_MIN_INTERVAL_SECONDS - (now - last_attempt))
-                return {
-                    "start": start_date.isoformat(),
-                    "end": end_date.isoformat(),
-                    "market_insights": [],
-                    "event_impacts": [],
-                    "events": events,
-                    "note": f"OpenAI cooldown active. Try again in {remaining}s.",
-                    "events_note": events_note,
-                    "model": None,
-                    "sources": sources,
-                }
+                last_attempt = float(cached.get("last_openai_attempt") or 0.0)
+                if (now - last_attempt) < OPENAI_MIN_INTERVAL_SECONDS:
+                    remaining = int(OPENAI_MIN_INTERVAL_SECONDS - (now - last_attempt))
+                    return {
+                        "start": start_date.isoformat(),
+                        "end": end_date.isoformat(),
+                        "market_insights": [],
+                        "event_impacts": [],
+                        "events": events,
+                        "note": f"OpenAI cooldown active. Try again in {remaining}s.",
+                        "events_note": events_note,
+                        "model": None,
+                        "sources": sources,
+                    }
 
         core_symbols = _get_core_symbols()
         benchmark_symbols = _get_benchmark_symbols()
@@ -576,8 +587,9 @@ def build_weekly_insights(force_refresh: bool = False) -> dict:
             ensure_ascii=True,
         )
 
-        with INSIGHTS_CACHE_LOCK:
-            INSIGHTS_CACHE["last_openai_attempt"] = time.time()
+        if not historical:
+            with INSIGHTS_CACHE_LOCK:
+                INSIGHTS_CACHE["last_openai_attempt"] = time.time()
 
         market_insights, event_impacts, note, model, rate_limited, retry_after = _call_openai(prompt)
         payload = {
@@ -592,24 +604,25 @@ def build_weekly_insights(force_refresh: bool = False) -> dict:
             "sources": sources,
         }
 
-        with INSIGHTS_CACHE_LOCK:
-            if note:
-                cooldown_seconds = (
-                    OPENAI_RATE_LIMIT_COOLDOWN_SECONDS
-                    if rate_limited
-                    else OPENAI_ERROR_COOLDOWN_SECONDS
+        if not historical:
+            with INSIGHTS_CACHE_LOCK:
+                if note:
+                    cooldown_seconds = (
+                        OPENAI_RATE_LIMIT_COOLDOWN_SECONDS
+                        if rate_limited
+                        else OPENAI_ERROR_COOLDOWN_SECONDS
+                    )
+                    if retry_after:
+                        cooldown_seconds = max(cooldown_seconds, retry_after)
+                    INSIGHTS_CACHE["cooldown_until"] = time.time() + cooldown_seconds
+                INSIGHTS_CACHE.update(
+                    {
+                        "timestamp": time.time(),
+                        "end_int": end_int,
+                        "events_sig": events_sig,
+                        "payload": payload,
+                    }
                 )
-                if retry_after:
-                    cooldown_seconds = max(cooldown_seconds, retry_after)
-                INSIGHTS_CACHE["cooldown_until"] = time.time() + cooldown_seconds
-            INSIGHTS_CACHE.update(
-                {
-                    "timestamp": time.time(),
-                    "end_int": end_int,
-                    "events_sig": events_sig,
-                    "payload": payload,
-                }
-            )
 
         return payload
     finally:
