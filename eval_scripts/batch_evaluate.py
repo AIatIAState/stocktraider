@@ -316,12 +316,124 @@ def main() -> None:
         "--skip-ragas", action="store_true",
         help="Skip Ragas evaluation (saves OpenAI API cost)",
     )
+    parser.add_argument(
+        "--patch", metavar="FILE",
+        help="Patch an existing report: re-run failed weeks (or specific weeks via --patch-weeks)",
+    )
+    parser.add_argument(
+        "--patch-weeks", nargs="+", metavar="DATE",
+        help="Specific week end-dates to re-run (e.g. 2026-01-30 2026-01-23)",
+    )
     args = parser.parse_args()
 
     if not args.skip_ragas and not RAGAS_AVAILABLE:
         print("WARNING: ragas not installed, running custom metrics only.", file=sys.stderr)
         args.skip_ragas = True
 
+    # ── Patch mode: re-run failed weeks from an existing report ──
+    if args.patch:
+        with open(args.patch, encoding="utf-8") as f:
+            existing = json.load(f)
+
+        all_weeks = existing["weeks"]
+        meta = existing["metadata"]
+        trials_per_week = meta.get("trials_per_week", 1)
+
+        # Find weeks to re-run: explicit dates or auto-detect failures
+        failed_weeks = []
+        if args.patch_weeks:
+            target_dates = set(args.patch_weeks)
+            for i, week in enumerate(all_weeks):
+                if week["week_end"] in target_dates:
+                    failed_weeks.append(i)
+            missing = target_dates - {all_weeks[i]["week_end"] for i in failed_weeks}
+            if missing:
+                print(f"WARNING: dates not found in report: {', '.join(missing)}")
+        else:
+            for i, week in enumerate(all_weeks):
+                has_errors = any("error" in t for t in week.get("trial_results", []))
+                agg = week.get("aggregate", {})
+                no_data = agg.get("symbol_accuracy", {}).get("mean") is None
+                zero_score = agg.get("symbol_accuracy", {}).get("mean") == 0.0
+                if has_errors or no_data or zero_score:
+                    failed_weeks.append(i)
+
+        if not failed_weeks:
+            print("No failed weeks found — report is complete!")
+            sys.exit(0)
+
+        print(f"Found {len(failed_weeks)} week(s) to re-evaluate:")
+        for i in failed_weeks:
+            print(f"  {all_weeks[i]['week_end']}")
+
+        total_calls = len(failed_weeks) * trials_per_week
+        call_num = 0
+
+        for i in failed_weeks:
+            week_end = all_weeks[i]["week_end"]
+            print(f"\n── Re-evaluating week ending {week_end} ──")
+            trial_results = []
+
+            for trial in range(trials_per_week):
+                call_num += 1
+                label = f"  Trial {trial + 1}/{trials_per_week}" if trials_per_week > 1 else "  Evaluating"
+                print(f"{label} ({call_num}/{total_calls}) ...", end=" ", flush=True)
+
+                try:
+                    result = evaluate_one(
+                        args.api_url, week_end, meta.get("num_tolerance", 1.5),
+                        skip_ragas=args.skip_ragas,
+                    )
+                    if "error" in result:
+                        print(f"SKIP: {result['error']}")
+                    else:
+                        scores = [
+                            result["metrics"][k]["score"]
+                            for k in METRIC_KEYS
+                            if result["metrics"][k].get("score") is not None
+                        ]
+                        avg = statistics.mean(scores) if scores else 0
+                        ragas_info = ""
+                        ragas_overall = result.get("ragas_metrics", {}).get("overall", {})
+                        if ragas_overall:
+                            f_val = ragas_overall.get("faithfulness", "?")
+                            r_val = ragas_overall.get("answer_relevancy", "?")
+                            ragas_info = f" | faith={f_val} rel={r_val}"
+                        print(f"avg={avg:.1%}{ragas_info}")
+                    trial_results.append(result)
+                except Exception as exc:
+                    print(f"ERROR: {exc}")
+                    trial_results.append({"error": str(exc), "date_range": week_end})
+
+                if call_num < total_calls:
+                    time.sleep(args.delay)
+
+            agg = aggregate_trials(trial_results)
+            first_ok = next((t for t in trial_results if "error" not in t), None)
+            date_range = first_ok["date_range"] if first_ok else week_end
+
+            # Replace the failed week in the report
+            all_weeks[i] = {
+                "date_range": date_range,
+                "week_end": week_end,
+                "trials": trials_per_week,
+                "aggregate": agg,
+                "trial_results": trial_results,
+            }
+
+        has_ragas = any("ragas" in w["aggregate"] for w in all_weeks)
+        print_summary(all_weeks, has_ragas=has_ragas)
+
+        existing["weeks"] = all_weeks
+        existing["metadata"]["patched_at"] = datetime.utcnow().isoformat() + "Z"
+
+        out_path = args.output
+        with open(out_path, "w", encoding="utf-8") as f:
+            json.dump(existing, f, indent=2, default=str)
+        print(f"\nPatched report saved to {out_path}")
+        return
+
+    # ── Normal mode: full evaluation ──
     print(f"Discovering {args.weeks} week windows from {args.api_url} ...")
     week_ends = discover_week_ends(args.api_url, args.weeks)
     print(f"  Week end dates: {', '.join(week_ends)}")
