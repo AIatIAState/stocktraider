@@ -8,22 +8,27 @@ import {
   Card,
   CardContent,
   Container,
+  FormControlLabel,
   Paper,
   Stack,
+  Switch,
   Table,
   TableBody,
   TableCell,
   TableContainer,
   TableHead,
   TableRow,
+  Tooltip,
   Typography,
 } from "@mui/material";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { fetchWeeklyMovers, type WeeklyMover } from "../services/api";
 import { GradientCircularProgress } from "./GradientCircularProgress";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import StatCard from "./charts/StatCard";
 import { formatSymbol } from "../utils/formatSymbol";
+
+const DEFAULT_MIN_VOLUME = 2_000_000;
 
 function formatPct(value: number) {
   const sign = value > 0 ? "+" : "";
@@ -84,24 +89,24 @@ export default function WeeklyMovers() {
   const [bottomError, setBottomError] = useState<string | null>(null);
   const [isTopLoading, setIsTopLoading] = useState(true);
   const [isBottomLoading, setIsBottomLoading] = useState(true);
+  const [volumeFilter, setVolumeFilter] = useState(true);
 
-  useEffect(() => {
+  const loadMovers = useCallback((useVolumeFilter: boolean) => {
+    const minVolume = useVolumeFilter ? DEFAULT_MIN_VOLUME : undefined;
     let active = true;
     setIsTopLoading(true);
     setIsBottomLoading(true);
-    fetchWeeklyMovers("top")
+    setTopError(null);
+    setBottomError(null);
+
+    fetchWeeklyMovers("top", minVolume)
       .then((response) => {
-        if (!active) {
-          return;
-        }
+        if (!active) return;
         setTopMovers(response.movers);
         setRange({ start: response.start, end: response.end });
-        setTopError(null);
       })
       .catch((err) => {
-        if (!active) {
-          return;
-        }
+        if (!active) return;
         const raw =
           err instanceof Error ? err.message : "Failed to load top movers.";
         const message =
@@ -111,27 +116,20 @@ export default function WeeklyMovers() {
         setTopError(message);
       })
       .finally(() => {
-        if (!active) {
-          return;
-        }
+        if (!active) return;
         setIsTopLoading(false);
       });
 
-    fetchWeeklyMovers("bottom")
+    fetchWeeklyMovers("bottom", minVolume)
       .then((response) => {
-        if (!active) {
-          return;
-        }
+        if (!active) return;
         setBottomMovers(response.movers);
         setRange(
           (current) => current ?? { start: response.start, end: response.end },
         );
-        setBottomError(null);
       })
       .catch((err) => {
-        if (!active) {
-          return;
-        }
+        if (!active) return;
         const raw =
           err instanceof Error ? err.message : "Failed to load bottom movers.";
         const message =
@@ -141,9 +139,7 @@ export default function WeeklyMovers() {
         setBottomError(message);
       })
       .finally(() => {
-        if (!active) {
-          return;
-        }
+        if (!active) return;
         setIsBottomLoading(false);
       });
 
@@ -151,6 +147,10 @@ export default function WeeklyMovers() {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    return loadMovers(volumeFilter);
+  }, [volumeFilter, loadMovers]);
 
   const latestDates = useMemo(() => {
     if (!range) {
@@ -161,14 +161,40 @@ export default function WeeklyMovers() {
 
   const maxRows = Math.max(topMovers.length, bottomMovers.length);
 
+  const volumeToggle = (
+    <Tooltip title="Filter out small companies (< 2M avg daily volume)">
+      <FormControlLabel
+        control={
+          <Switch
+            checked={volumeFilter}
+            onChange={(_, checked) => setVolumeFilter(checked)}
+            size="small"
+          />
+        }
+        label={
+          <Typography variant="caption" color="text.secondary">
+            Filter out small companies
+          </Typography>
+        }
+        sx={{ ml: 1 }}
+        onClick={(e) => e.stopPropagation()}
+      />
+    </Tooltip>
+  );
+
   return (
     <Container maxWidth="lg" sx={{ py: { xs: 4, md: 6 } }}>
       {isTopLoading || isBottomLoading ? (
         <Card>
           <CardContent>
-            <Stack direction="row" alignItems="center" spacing={2}>
-              <Typography variant="h4">Weekly Movers</Typography>
-              <GradientCircularProgress />
+            <Stack spacing={1.5}>
+              <Typography variant="h5">Weekly Movers</Typography>
+              <Stack direction="row" spacing={2} alignItems="center">
+                <Typography variant="body2" color="text.secondary">
+                  Loading weekly movers...
+                </Typography>
+                <GradientCircularProgress />
+              </Stack>
             </Stack>
           </CardContent>
         </Card>
@@ -176,7 +202,10 @@ export default function WeeklyMovers() {
         <Card>
           <CardContent>
             <Stack spacing={1.5}>
-              <Typography variant="h4">Weekly Movers</Typography>
+              <Stack direction="row" alignItems="center" spacing={2}>
+                <Typography variant="h5">Weekly Movers</Typography>
+                {volumeToggle}
+              </Stack>
               {topError ? <Alert severity="error">{topError}</Alert> : null}
               {bottomError ? (
                 <Alert severity="error">{bottomError}</Alert>
@@ -188,13 +217,14 @@ export default function WeeklyMovers() {
         <Accordion style={{ padding: "16px" }}>
           <AccordionSummary expandIcon={<ExpandMoreIcon />}>
             <Stack direction="row" alignItems="center" spacing={2}>
-              <Typography variant="h4">Weekly Movers</Typography>
+              <Typography variant="h5">Weekly Movers</Typography>
               <Typography variant="h6">
                 Top and bottom performers from daily close prices.
               </Typography>
               <Typography variant="caption" color="text.secondary">
                 Data from: {latestDates}
               </Typography>
+              {volumeToggle}
             </Stack>
           </AccordionSummary>
           <TableContainer component={Paper}>
