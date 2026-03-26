@@ -5,7 +5,7 @@ import time
 from datetime import date
 from fastapi import HTTPException
 
-MOVERS_CACHE_TTL_SECONDS = 10 * 60
+MOVERS_CACHE_TTL_SECONDS = 86400  # 24 hours
 # In-memory cache to keep weekly movers fast between requests.
 # Cache key is (direction, min_volume) to support filtered/unfiltered results independently.
 MOVERS_CACHE_LOCK = threading.Lock()

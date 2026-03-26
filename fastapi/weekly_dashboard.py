@@ -431,7 +431,7 @@ def _call_openai(
     return [], [], "OpenAI request failed after retries.", model, False, None
 
 
-ALERTS_CACHE_TTL_SECONDS = 10 * 60  # 10 minutes, same as movers cache
+ALERTS_CACHE_TTL_SECONDS = 86400  # 24 hours
 ALERTS_CACHE_LOCK = threading.Lock()
 # Keyed by "end_int:min_volume"
 ALERTS_CACHE: dict[str, dict] = {}
