@@ -108,7 +108,7 @@ export default function WeeklyWorldEventsCard(
               <List dense>
                 {impacts.map((item, index) => (
                   <ListItem key={`event-impact-${index}`} disableGutters>
-                    <ListItemText primary={item} />
+                    <ListItemText slotProps={{ primary: { variant: "body2" } }} primary={`• ${item}`} />
                   </ListItem>
                 ))}
               </List>

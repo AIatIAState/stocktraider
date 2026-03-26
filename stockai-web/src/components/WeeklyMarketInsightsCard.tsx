@@ -46,7 +46,7 @@ export default function WeeklyMarketInsightsCard(
               <List dense>
                 {insights.map((item, index) => (
                   <ListItem key={`market-insight-${index}`} disableGutters>
-                    <ListItemText primary={item} />
+                    <ListItemText slotProps={{ primary: { variant: "body2" } }} primary={`• ${item}`} />
                   </ListItem>
                 ))}
               </List>
