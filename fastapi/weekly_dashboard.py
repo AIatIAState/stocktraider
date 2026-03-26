@@ -878,7 +878,7 @@ def build_ticker_signal(symbol: str) -> dict:
                 if v is not None and str(v) != "nan"
             }
     except Exception as exc:
-        LOGGER.debug("Feature build failed for %s: %s", symbol, exc)
+        LOGGER.warning("Feature build failed for %s: %s", symbol, exc)
 
     # 2. XGBoost model prediction
     xgboost_prediction = None
@@ -895,37 +895,39 @@ def build_ticker_signal(symbol: str) -> dict:
             pred = xgboost.predict(X_test)
             xgboost_prediction = round(float(pred[0]), 4)
     except Exception as exc:
-        LOGGER.debug("XGBoost prediction failed for %s: %s", symbol, exc)
+        LOGGER.warning("XGBoost prediction failed for %s: %s", symbol, exc)
 
     # 3. Forecast data
     forecast_summary = {}
     try:
         from forecasting import get_forecast
-        forecast_result = get_forecast(symbol, "daily", 7)
-        if isinstance(forecast_result, dict) and "forecasts" in forecast_result:
-            for model_name, values in forecast_result["forecasts"].items():
-                if isinstance(values, list) and values:
-                    forecast_summary[model_name] = round(float(values[-1]), 2)
+        forecast_result = get_forecast(f"{symbol}.US", "daily", 7)
+        if isinstance(forecast_result, dict) and "results" in forecast_result:
+            for entry in forecast_result["results"]:
+                name = entry.get("name", "")
+                values = entry.get("forecast", [])
+                if values:
+                    forecast_summary[name] = round(float(values[-1]["open"]), 2)
     except Exception as exc:
-        LOGGER.debug("Forecast failed for %s: %s", symbol, exc)
+        LOGGER.warning("Forecast failed for %s: %s", symbol, exc)
 
     # 4. Pattern match data
     pattern_summary = {}
     try:
         from pattern_recognition import get_dtw_patterns
-        pattern_result = get_dtw_patterns(symbol, "daily", 7, 90)
-        if isinstance(pattern_result, dict) and "patterns" in pattern_result:
-            patterns = pattern_result["patterns"]
+        pattern_result = get_dtw_patterns(f"{symbol}.US", "daily", 7, 90)
+        if isinstance(pattern_result, dict) and "results" in pattern_result:
+            patterns = pattern_result["results"]
             if patterns:
-                avg_outcome = sum(
-                    p.get("outcome_pct", 0) for p in patterns if "outcome_pct" in p
-                ) / max(len(patterns), 1)
+                avg_similarity = sum(
+                    p.get("similarity_score", 0) for p in patterns
+                ) / len(patterns)
                 pattern_summary = {
                     "num_matches": len(patterns),
-                    "avg_historical_outcome_pct": round(avg_outcome, 2),
+                    "avg_similarity_score": round(avg_similarity, 2),
                 }
     except Exception as exc:
-        LOGGER.debug("Pattern matching failed for %s: %s", symbol, exc)
+        LOGGER.warning("Pattern matching failed for %s: %s", symbol, exc)
 
     # 5. News context — general market events + symbol-specific news
     today = _dt.date.today()
@@ -935,7 +937,7 @@ def build_ticker_signal(symbol: str) -> dict:
     try:
         market_news, _, _ = _load_events(week_ago, today)
     except Exception as exc:
-        LOGGER.debug("Market news load failed: %s", exc)
+        LOGGER.warning("Market news load failed: %s", exc)
 
     newsapi_key = os.getenv("NEWSAPI_KEY") or os.getenv("NEWSAPI_API_KEY")
     if newsapi_key:
@@ -963,7 +965,7 @@ def build_ticker_signal(symbol: str) -> dict:
                         "source": (article.get("source") or {}).get("name"),
                     })
         except Exception as exc:
-            LOGGER.debug("Symbol news fetch failed for %s: %s", symbol, exc)
+            LOGGER.warning("Symbol news fetch failed for %s: %s", symbol, exc)
 
     # --- build GPT prompt ---
     prompt = json.dumps(
@@ -976,16 +978,23 @@ def build_ticker_signal(symbol: str) -> dict:
             "market_news": [{"title": e["title"]} for e in market_news[:8]],
             "symbol_news": symbol_news,
             "instructions": (
-                "You are a quantitative stock analyst. Based on all the data provided — "
-                "technical indicators, XGBoost model prediction, forecast ensemble, "
-                "historical pattern matches, and relevant news — classify this stock as "
-                "BUY or SELL. Make your decision based on the information in context. "
+                "You are an investment research assistant. Based on the curated data, "
+                "forecasts, and news provided, decide whether this stock is a BUY or SELL "
+                "for investors considering a variety of investment horizons (short, medium, "
+                "and long term). "
+                "Begin your reasoning with 'Our insights suggest...' and write 2-3 sentences "
+                "in plain, conversational language. Focus on: "
+                "1) The company's reputation and track record as an investment. "
+                "2) How recent news and market events may impact this stock. "
+                "3) Whether the predicted returns support a bullish or bearish outlook. "
+                "Do NOT use technical jargon like forecast endpoints, similarity scores, "
+                "model clustering, pattern matches, or feature conditions. "
                 "Do not mention missing data or incomplete information. Be decisive. "
                 "Return ONLY valid JSON with these fields: "
                 '"signal" ("BUY" or "SELL"), '
-                '"reasoning" (2-3 sentences explaining why), '
+                '"reasoning" (2-3 sentences starting with "Our insights suggest..."), '
                 '"confidence" ("low", "medium", or "high"), '
-                '"key_factors" (list of 3-5 most influential factors as short strings).'
+                '"key_factors" (list of 3-5 factors as short, non-technical strings).'
             ),
         },
         ensure_ascii=True,
