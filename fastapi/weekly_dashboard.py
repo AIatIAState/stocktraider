@@ -1,4 +1,6 @@
+import datetime as _dt
 import json
+import logging
 import os
 import threading
 import time
@@ -14,6 +16,8 @@ from WeeklyMovers import (
     fetch_weekly_movers,
     fetch_weekly_series,
 )
+
+LOGGER = logging.getLogger("uvicorn.error")
 
 INSIGHTS_CACHE_TTL_SECONDS = int(os.getenv("WEEKLY_INSIGHTS_CACHE_SECONDS", "86400"))
 OPENAI_MIN_INTERVAL_SECONDS = int(os.getenv("OPENAI_MIN_INTERVAL_SECONDS", "60"))
@@ -427,7 +431,18 @@ def _call_openai(
     return [], [], "OpenAI request failed after retries.", model, False, None
 
 
-def build_weekly_alerts(end_date: str | None = None) -> dict:
+ALERTS_CACHE_TTL_SECONDS = 10 * 60  # 10 minutes, same as movers cache
+ALERTS_CACHE_LOCK = threading.Lock()
+# Keyed by "end_int:min_volume"
+ALERTS_CACHE: dict[str, dict] = {}
+
+
+def _alerts_cache_key(end_int: int, min_volume: int | None) -> str:
+    return f"{end_int}:{min_volume or 0}"
+
+
+def build_weekly_alerts(end_date: str | None = None, min_volume: int | None = None) -> dict:
+    historical = end_date is not None
     limit = int(os.getenv("WEEKLY_ALERTS_LIMIT", "20"))
     core_target = int(os.getenv("WEEKLY_ALERTS_CORE_TARGET", "10"))
     top_target = int(os.getenv("WEEKLY_ALERTS_TOP_TARGET", "5"))
@@ -435,6 +450,16 @@ def build_weekly_alerts(end_date: str | None = None) -> dict:
     conn = get_connection(readonly=True)
     try:
         start_int, end_int, start_date, end_date = _get_weekly_range(conn, end_date)
+
+        # --- cache check ---
+        if not historical:
+            cache_key = _alerts_cache_key(end_int, min_volume)
+            with ALERTS_CACHE_LOCK:
+                cached = ALERTS_CACHE.get(cache_key)
+                if cached:
+                    now = time.time()
+                    if (now - cached["timestamp"]) < ALERTS_CACHE_TTL_SECONDS:
+                        return cached["payload"]
         core_symbols = _get_core_symbols()
         core_changes = _fetch_symbol_changes(conn, core_symbols, start_int, end_int)
 
@@ -445,8 +470,8 @@ def build_weekly_alerts(end_date: str | None = None) -> dict:
         bottom_target = min(bottom_target, remaining)
 
         movers_limit = max(limit, core_target + top_target + bottom_target, 25)
-        top_movers = fetch_weekly_movers(conn, start_int, end_int, "DESC", movers_limit)
-        bottom_movers = fetch_weekly_movers(conn, start_int, end_int, "ASC", movers_limit)
+        top_movers = fetch_weekly_movers(conn, start_int, end_int, "DESC", movers_limit, min_volume)
+        bottom_movers = fetch_weekly_movers(conn, start_int, end_int, "ASC", movers_limit, min_volume)
 
         used: set[str] = set()
         alerts: list[dict] = []
@@ -491,13 +516,23 @@ def build_weekly_alerts(end_date: str | None = None) -> dict:
         benchmark_symbols = _get_benchmark_symbols()
         benchmark_changes = _fetch_symbol_changes(conn, benchmark_symbols, start_int, end_int)
 
-        return {
+        payload = {
             "start": start_date.isoformat(),
             "end": end_date.isoformat(),
             "alerts": alerts[:limit],
             "featured": featured,
             "benchmarks": benchmark_changes,
         }
+
+        if not historical:
+            cache_key = _alerts_cache_key(end_int, min_volume)
+            with ALERTS_CACHE_LOCK:
+                ALERTS_CACHE[cache_key] = {
+                    "timestamp": time.time(),
+                    "payload": payload,
+                }
+
+        return payload
     finally:
         conn.close()
 
@@ -627,3 +662,358 @@ def build_weekly_insights(force_refresh: bool = False, end_date: str | None = No
         return payload
     finally:
         conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Feature 1 — Weekly LLM Stock Recommendation
+# ---------------------------------------------------------------------------
+
+RISK_STRATEGIES = {
+    "low": (
+        "Prioritize stability — pick from large-cap, low-volatility stocks with "
+        "strong fundamentals. Avoid stocks with recent extreme moves. Acceptable "
+        "to pick a modest outperformer."
+    ),
+    "mid": (
+        "Balance risk and reward — pick a stock with solid momentum and reasonable "
+        "volatility. May include mid-cap names with positive catalysts."
+    ),
+    "high": (
+        "Maximize upside potential — pick a stock with strong recent momentum even "
+        "if volatile. Small/mid-cap names with breakout patterns are acceptable."
+    ),
+}
+
+RECOMMENDATION_CACHE_LOCK = threading.Lock()
+# Keyed by "end_int:risk_strategy"
+RECOMMENDATION_CACHE: dict[str, dict] = {}
+
+
+def _recommendation_cache_key(end_int: int, risk_strategy: str) -> str:
+    return f"{end_int}:{risk_strategy}"
+
+
+def build_weekly_recommendation(
+    risk_strategy: str = "mid",
+    force_refresh: bool = False,
+    end_date: str | None = None,
+) -> dict:
+    if risk_strategy not in RISK_STRATEGIES:
+        raise HTTPException(status_code=400, detail="risk must be low, mid, or high")
+
+    historical = end_date is not None
+    conn = get_connection(readonly=True)
+    try:
+        start_int, end_int, start_date_val, end_date_val = _get_weekly_range(conn, end_date)
+
+        # --- cache check ---
+        if not historical and not force_refresh:
+            cache_key = _recommendation_cache_key(end_int, risk_strategy)
+            with RECOMMENDATION_CACHE_LOCK:
+                cached = RECOMMENDATION_CACHE.get(cache_key)
+                if cached:
+                    now = time.time()
+                    if (now - cached.get("timestamp", 0)) < INSIGHTS_CACHE_TTL_SECONDS:
+                        return cached["payload"]
+
+        # --- gather data ---
+        core_symbols = _get_core_symbols()
+        benchmark_symbols = _get_benchmark_symbols()
+        core_changes = _fetch_symbol_changes(conn, core_symbols, start_int, end_int)
+        benchmark_changes = _fetch_symbol_changes(conn, benchmark_symbols, start_int, end_int)
+        top_movers = fetch_weekly_movers(conn, start_int, end_int, "DESC", 10)
+        bottom_movers = fetch_weekly_movers(conn, start_int, end_int, "ASC", 5)
+        events, events_note, sources = _load_events(start_date_val, end_date_val)
+
+        # Gather feature snapshots for candidate stocks (top movers + core)
+        candidate_symbols = list({
+            _normalize_symbol(m["symbol"])
+            for m in (top_movers + core_changes)
+            if m.get("symbol")
+        })
+        feature_summaries = _get_feature_summaries(candidate_symbols)
+
+        prompt = json.dumps(
+            {
+                "range": {
+                    "start": start_date_val.isoformat(),
+                    "end": end_date_val.isoformat(),
+                },
+                "benchmarks": benchmark_changes,
+                "core_watchlist": core_changes,
+                "top_movers": top_movers,
+                "bottom_movers": bottom_movers,
+                "events": events,
+                "feature_snapshots": feature_summaries,
+                "risk_preference": {
+                    "level": risk_strategy,
+                    "description": RISK_STRATEGIES[risk_strategy],
+                },
+                "instructions": (
+                    "You are a quantitative stock analyst. Select ONE stock from the "
+                    "candidates (core_watchlist + top_movers) that is most likely to "
+                    f"outperform SPY next week given the '{risk_strategy}' risk preference. "
+                    "Return ONLY valid JSON with these fields: "
+                    '"symbol" (ticker), '
+                    '"action" ("BUY"), '
+                    '"reasoning" (2-3 sentences), '
+                    '"predicted_move" (e.g. "+2-4%"), '
+                    '"confidence" ("low", "medium", or "high"), '
+                    '"risk_strategy" (echo back the preference used).'
+                ),
+            },
+            ensure_ascii=True,
+        )
+
+        market_insights, event_impacts, note, model, rate_limited, retry_after = (
+            _call_openai(prompt)
+        )
+
+        # Parse the structured recommendation from the first insight
+        recommendation = {}
+        if market_insights:
+            raw_text = market_insights[0] if len(market_insights) == 1 else " ".join(market_insights)
+            recommendation = _parse_json_from_text(raw_text)
+
+        payload = {
+            "start": start_date_val.isoformat(),
+            "end": end_date_val.isoformat(),
+            "symbol": recommendation.get("symbol"),
+            "action": recommendation.get("action", "BUY"),
+            "reasoning": recommendation.get("reasoning"),
+            "predicted_move": recommendation.get("predicted_move"),
+            "confidence": recommendation.get("confidence"),
+            "risk_strategy": risk_strategy,
+            "model": model,
+            "note": note,
+            "events_note": events_note,
+            "sources": sources,
+        }
+
+        # --- cache store ---
+        if not historical:
+            cache_key = _recommendation_cache_key(end_int, risk_strategy)
+            with RECOMMENDATION_CACHE_LOCK:
+                RECOMMENDATION_CACHE[cache_key] = {
+                    "timestamp": time.time(),
+                    "payload": payload,
+                }
+
+        return payload
+    finally:
+        conn.close()
+
+
+def _get_feature_summaries(symbols: list[str]) -> list[dict]:
+    """Build lightweight feature summaries for candidate stocks.
+
+    Calls build_full_features for each symbol and extracts key metrics.
+    Falls back gracefully if features cannot be built.
+    """
+    summaries: list[dict] = []
+    try:
+        from xg_boost_investor.Features import build_full_features
+    except ImportError:
+        return []
+
+    today = _dt.date.today()
+    for symbol in symbols[:15]:  # cap to avoid excessive API calls
+        try:
+            features_df, _ = build_full_features([symbol], today, today)
+            if features_df.empty:
+                continue
+            row = features_df.iloc[-1]
+            key_features = {}
+            for col in [
+                "ret_1d", "ret_5d", "ret_20d", "momentum_12_1",
+                "realized_vol_20d", "volume_zscore_20d", "beta_spy_60d",
+                "alpha_spy_60d", "stock_spy_diff_20d",
+            ]:
+                if col in row.index:
+                    val = row[col]
+                    if val is not None and str(val) != "nan":
+                        key_features[col] = round(float(val), 4)
+            if key_features:
+                summaries.append({"symbol": symbol, "features": key_features})
+        except Exception as exc:
+            LOGGER.debug("Feature build failed for %s: %s", symbol, exc)
+            continue
+    return summaries
+
+
+# ---------------------------------------------------------------------------
+# Feature 2 — BUY/SELL Ticker Signal
+# ---------------------------------------------------------------------------
+
+SIGNAL_CACHE_LOCK = threading.Lock()
+SIGNAL_CACHE: dict[str, dict] = {}  # keyed by symbol
+
+
+def build_ticker_signal(symbol: str) -> dict:
+    symbol = symbol.strip().upper().replace(".US", "")
+    if not symbol:
+        raise HTTPException(status_code=400, detail="symbol is required")
+
+    # --- cache check ---
+    now = time.time()
+    with SIGNAL_CACHE_LOCK:
+        cached = SIGNAL_CACHE.get(symbol)
+        if cached and (now - cached.get("timestamp", 0)) < INSIGHTS_CACHE_TTL_SECONDS:
+            return cached["payload"]
+
+    # --- gather all available data ---
+    features_df = None
+
+    # 1. Current feature conditions
+    feature_snapshot = {}
+    try:
+        from xg_boost_investor.Features import build_full_features
+        today = _dt.date.today()
+        features_df, _ = build_full_features([symbol], today, today)
+        if not features_df.empty:
+            row = features_df.iloc[-1]
+            feature_snapshot = {
+                k: round(float(v), 4)
+                for k, v in row.to_dict().items()
+                if v is not None and str(v) != "nan"
+            }
+    except Exception as exc:
+        LOGGER.debug("Feature build failed for %s: %s", symbol, exc)
+
+    # 2. XGBoost model prediction
+    xgboost_prediction = None
+    try:
+        import pandas as pd
+        from xg_boost_investor import XGBoostInvestor as XGI
+        xgboost = XGI.XGBoostInvestor()
+        xgboost.load("xg_boost_investor/model_save/model/xgboost_investor")
+        if features_df is not None and not features_df.empty:
+            features_df_copy = pd.DataFrame(features_df).reset_index(drop=True)
+            X_test, _, _, _ = xgboost.prepare_predictions(
+                features_df_copy, pd.DataFrame([{"ret_1d": 0}])
+            )
+            pred = xgboost.predict(X_test)
+            xgboost_prediction = round(float(pred[0]), 4)
+    except Exception as exc:
+        LOGGER.debug("XGBoost prediction failed for %s: %s", symbol, exc)
+
+    # 3. Forecast data
+    forecast_summary = {}
+    try:
+        from forecasting import get_forecast
+        forecast_result = get_forecast(symbol, "daily", 7)
+        if isinstance(forecast_result, dict) and "forecasts" in forecast_result:
+            for model_name, values in forecast_result["forecasts"].items():
+                if isinstance(values, list) and values:
+                    forecast_summary[model_name] = round(float(values[-1]), 2)
+    except Exception as exc:
+        LOGGER.debug("Forecast failed for %s: %s", symbol, exc)
+
+    # 4. Pattern match data
+    pattern_summary = {}
+    try:
+        from pattern_recognition import get_dtw_patterns
+        pattern_result = get_dtw_patterns(symbol, "daily", 7, 90)
+        if isinstance(pattern_result, dict) and "patterns" in pattern_result:
+            patterns = pattern_result["patterns"]
+            if patterns:
+                avg_outcome = sum(
+                    p.get("outcome_pct", 0) for p in patterns if "outcome_pct" in p
+                ) / max(len(patterns), 1)
+                pattern_summary = {
+                    "num_matches": len(patterns),
+                    "avg_historical_outcome_pct": round(avg_outcome, 2),
+                }
+    except Exception as exc:
+        LOGGER.debug("Pattern matching failed for %s: %s", symbol, exc)
+
+    # 5. News context — general market events + symbol-specific news
+    today = _dt.date.today()
+    week_ago = today - timedelta(days=7)
+    market_news: list[dict] = []
+    symbol_news: list[dict] = []
+    try:
+        market_news, _, _ = _load_events(week_ago, today)
+    except Exception as exc:
+        LOGGER.debug("Market news load failed: %s", exc)
+
+    newsapi_key = os.getenv("NEWSAPI_KEY") or os.getenv("NEWSAPI_API_KEY")
+    if newsapi_key:
+        try:
+            response = requests.get(
+                NEWSAPI_ENDPOINT,
+                params={
+                    "q": f"{symbol} stock",
+                    "from": week_ago.isoformat(),
+                    "to": today.isoformat(),
+                    "language": "en",
+                    "sortBy": "relevancy",
+                    "pageSize": 5,
+                },
+                headers={"X-Api-Key": newsapi_key},
+                timeout=10,
+            )
+            response.raise_for_status()
+            articles = response.json().get("articles", [])
+            for article in articles:
+                if isinstance(article, dict) and article.get("title"):
+                    symbol_news.append({
+                        "title": str(article["title"]).strip(),
+                        "date": article.get("publishedAt"),
+                        "source": (article.get("source") or {}).get("name"),
+                    })
+        except Exception as exc:
+            LOGGER.debug("Symbol news fetch failed for %s: %s", symbol, exc)
+
+    # --- build GPT prompt ---
+    prompt = json.dumps(
+        {
+            "symbol": symbol,
+            "feature_conditions": feature_snapshot,
+            "xgboost_prediction": xgboost_prediction,
+            "forecast_endpoints": forecast_summary,
+            "pattern_analysis": pattern_summary,
+            "market_news": [{"title": e["title"]} for e in market_news[:8]],
+            "symbol_news": symbol_news,
+            "instructions": (
+                "You are a quantitative stock analyst. Based on all the data provided — "
+                "technical indicators, XGBoost model prediction, forecast ensemble, "
+                "historical pattern matches, and relevant news — classify this stock as "
+                "BUY or SELL. Make your decision based on the information in context. "
+                "Do not mention missing data or incomplete information. Be decisive. "
+                "Return ONLY valid JSON with these fields: "
+                '"signal" ("BUY" or "SELL"), '
+                '"reasoning" (2-3 sentences explaining why), '
+                '"confidence" ("low", "medium", or "high"), '
+                '"key_factors" (list of 3-5 most influential factors as short strings).'
+            ),
+        },
+        ensure_ascii=True,
+    )
+
+    market_insights, _, note, model, rate_limited, retry_after = _call_openai(prompt)
+
+    signal_data = {}
+    if market_insights:
+        raw_text = market_insights[0] if len(market_insights) == 1 else " ".join(market_insights)
+        signal_data = _parse_json_from_text(raw_text)
+
+    payload = {
+        "symbol": symbol,
+        "signal": signal_data.get("signal", "SELL"),
+        "reasoning": signal_data.get("reasoning"),
+        "confidence": signal_data.get("confidence"),
+        "key_factors": signal_data.get("key_factors", []),
+        "as_of": _dt.date.today().isoformat(),
+        "model": model,
+        "note": note,
+    }
+
+    # --- cache store ---
+    with SIGNAL_CACHE_LOCK:
+        SIGNAL_CACHE[symbol] = {
+            "timestamp": time.time(),
+            "payload": payload,
+        }
+
+    return payload
