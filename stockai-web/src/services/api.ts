@@ -38,8 +38,11 @@ export function fetchBars(params: {
   return requestJson<{ results: Bar[] }>(`/api/bars?${qs.toString()}`)
 }
 
-export function fetchWeeklyMovers(direction: 'top' | 'bottom') {
+export function fetchWeeklyMovers(direction: 'top' | 'bottom', minVolume?: number) {
   const qs = new URLSearchParams({ direction })
+  if (minVolume != null) {
+    qs.set('min_volume', String(minVolume))
+  }
   return requestJson<WeeklyMoversBatch>(`/api/weekly-movers?${qs.toString()}`)
 }
 
@@ -53,8 +56,23 @@ export function refreshWeeklyInsights() {
   })
 }
 
-export function fetchWeeklyAlerts() {
-  return requestJson<WeeklyAlertsResponse>('/api/weekly-alerts')
+export function fetchWeeklyAlerts(minVolume?: number) {
+  const qs = new URLSearchParams()
+  if (minVolume != null) {
+    qs.set('min_volume', String(minVolume))
+  }
+  const query = qs.toString()
+  return requestJson<WeeklyAlertsResponse>(`/api/weekly-alerts${query ? `?${query}` : ''}`)
+}
+
+export function fetchWeeklyRecommendation(risk: 'low' | 'mid' | 'high' = 'mid') {
+  const qs = new URLSearchParams({ risk })
+  return requestJson<WeeklyRecommendationResponse>(`/api/weekly-recommendation?${qs.toString()}`)
+}
+
+export function fetchTickerSignal(symbol: string) {
+  const qs = new URLSearchParams({ symbol })
+  return requestJson<TickerSignalResponse>(`/api/ticker-signal?${qs.toString()}`)
 }
 
 export function runAdminUpdate(params: {
@@ -214,4 +232,28 @@ export type WeeklyMoversBatch = {
   end: string
   direction: 'top' | 'bottom'
   movers: WeeklyMover[]
+}
+
+export type WeeklyRecommendationResponse = {
+  start: string
+  end: string
+  symbol: string | null
+  action: string
+  reasoning: string | null
+  predicted_move: string | null
+  confidence: string | null
+  risk_strategy: string
+  model: string | null
+  note: string | null
+}
+
+export type TickerSignalResponse = {
+  symbol: string
+  signal: 'BUY' | 'SELL'
+  reasoning: string | null
+  confidence: string | null
+  key_factors: string[]
+  as_of: string
+  model: string | null
+  note: string | null
 }
