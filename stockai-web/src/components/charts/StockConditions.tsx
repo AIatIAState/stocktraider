@@ -442,7 +442,7 @@ export function StockConditions(props: StockConditionsProps) {
                                                     Upcoming Estimated Closing Return
                                                 </Typography>
                                                 <MetricValue sx={{color: xgboostPrediction > 0 ? 'green': 'red'}}>
-                                                    {xgboostPrediction > 0 ? '+': '-'}{xgboostPrediction.toFixed(4)}{'%'}
+                                                    {xgboostPrediction > 0 ? '+': ''}{xgboostPrediction.toFixed(4)}{'%'}
                                                 </MetricValue>
                                             </Box>
                                         </MetricContainer>

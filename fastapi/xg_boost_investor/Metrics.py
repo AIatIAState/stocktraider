@@ -22,43 +22,69 @@ def analyze_portfolio(portfolio_data):
     # Calculate cumulative maximum for drawdown
     df['CumulativeMax'] = df['PortfolioValue'].cummax()
     df['Drawdown'] = (df['PortfolioValue'] - df['CumulativeMax']) / df['CumulativeMax'] * 100
-
     # Metrics calculation
-    total_return = (df['PortfolioValue'].iloc[-1] / df['PortfolioValue'].iloc[0] - 1) * 100
-    annual_return = (total_return / 100) ** (365 / len(df)) - 1
+    initial_value = df['PortfolioValue'].iloc[0]
+    final_value = df['PortfolioValue'].iloc[-1]
+    n_days = len(df)
 
+    # --- Returns ---
+    total_return = (final_value / initial_value - 1) * 100
+
+    # Annualized return (using trading days)
+    annual_return = (final_value / initial_value) ** (252 / n_days) - 1
+
+    # --- Daily returns ---
     daily_returns = df['DailyReturn'].dropna()
-    volatility = daily_returns.std() * np.sqrt(252)  # Annualized
 
-    risk_free_rate = 0.04  # 4% annual risk-free rate
-    excess_return = annual_return - risk_free_rate
-    sharpe_ratio = excess_return / volatility if volatility != 0 else 0
+    # --- Volatility ---
+    volatility = daily_returns.std() * np.sqrt(252)
 
-    # Sortino Ratio (only downside volatility)
-    downside_returns = daily_returns[daily_returns < 0]
-    downside_volatility = downside_returns.std() * np.sqrt(252) if len(downside_returns) > 0 else 0
-    sortino_ratio = excess_return / downside_volatility if downside_volatility != 0 else 0
+    # --- Risk-free rate ---
+    risk_free_rate = 0.04
+    rf_daily = risk_free_rate / 252
 
-    # Maximum Drawdown
-    max_drawdown = df['Drawdown'].min()
+    # --- Sharpe Ratio (CORRECT) ---
+    excess_daily_returns = daily_returns - rf_daily
+    sharpe_ratio = (
+        excess_daily_returns.mean() / daily_returns.std() * np.sqrt(252)
+        if daily_returns.std() != 0 else 0
+    )
 
-    # Calmar Ratio
-    calmar_ratio = annual_return / abs(max_drawdown) * 100 if max_drawdown != 0 else 0
+    # --- Sortino Ratio (CORRECT downside definition) ---
+    downside_returns = daily_returns[daily_returns < rf_daily]
+    downside_volatility = (
+        downside_returns.std() * np.sqrt(252)
+        if len(downside_returns) > 0 else 0
+    )
 
-    # Win Rate
-    positive_days = len(daily_returns[daily_returns > 0])
+    sortino_ratio = (
+        (excess_daily_returns.mean() / downside_returns.std()) * np.sqrt(252)
+        if downside_volatility != 0 else 0
+    )
+
+    # --- Maximum Drawdown ---
+    max_drawdown = df['Drawdown'].min()  # already in %
+
+    # --- Calmar Ratio (FIXED units) ---
+    calmar_ratio = (
+        annual_return / abs(max_drawdown / 100)
+        if max_drawdown != 0 else 0
+    )
+
+    # --- Win Rate ---
+    positive_days = (daily_returns > 0).sum()
     total_days = len(daily_returns)
     win_rate = (positive_days / total_days * 100) if total_days > 0 else 0
 
-    # Profit Factor
+    # --- Profit Factor ---
     gains = daily_returns[daily_returns > 0].sum()
     losses = abs(daily_returns[daily_returns < 0].sum())
     profit_factor = gains / losses if losses != 0 else 0
 
-    # Recovery Factor
-    total_days_traded = len(df) - 1
-    total_profit = df['PortfolioValue'].iloc[-1] - df['PortfolioValue'].iloc[0]
-    recovery_factor = total_profit / abs(max_drawdown * df['CumulativeMax'].max() / 100) if max_drawdown != 0 else 0
+    # --- Recovery Factor (cleaner version) ---
+    max_dd_dollar = abs((max_drawdown / 100) * df['CumulativeMax'].max())
+    total_profit = final_value - initial_value
+    recovery_factor = total_profit / max_dd_dollar if max_dd_dollar != 0 else 0
 
     metrics = {
         'Total Return (%)': total_return,

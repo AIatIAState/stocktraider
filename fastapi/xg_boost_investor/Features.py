@@ -145,7 +145,8 @@ def fetch_fred_data(series_id, name, save_load=True):
 
         data.index.name = "Date"
 
-        data[name].to_csv(f'{name}_fred.csv')
+        if save_load:
+            data[name].to_csv(f'{name}_fred.csv')
 
     except Exception as e:
         print(f"Failed to fetch FRED data for {series_id}: {e}")
@@ -354,7 +355,7 @@ def time_embeddings(start_date, end_date):
 
 
 
-def build_full_features(tickers, start_date=date(2021, 1, 1), end_date=date(2024, 1, 1), explainable=False, alias_tag=None, save_fred=True):
+def build_full_features(tickers, start_date=date(2021, 1, 1), end_date=date(2024, 1, 1), explainable=False, alias_tag=None, save_fred=False):
 
     before_start_date = start_date - timedelta(days=400)
     after_end_date = end_date + timedelta(days=10)

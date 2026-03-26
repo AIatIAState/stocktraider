@@ -273,7 +273,7 @@ def retrain_model(save_dir='./model_save', start_date=date.today()):
     model.save(model_path)
 
 if __name__ == "__main__":
-    retrain_model()
+    #retrain_model()
     symbol = "AAPL"
     today = date.today()
     market_conditions, _ = build_full_features([symbol.replace(".US", "")], today, today)

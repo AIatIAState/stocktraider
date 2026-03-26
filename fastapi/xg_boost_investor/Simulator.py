@@ -34,7 +34,7 @@ def simulate_year(year, look_back, precompute=True, data_dir='./', model_dir='./
                 tickers,
                 start_date=date(year - 1 - i, 1, 1),
                 end_date=date(year - i, 1, 1),
-                save_fred=True
+                save_fred=False
             )
             target.to_csv(target_file_save, index=False)
             features.to_csv(feature_file_save, index=False)
@@ -80,7 +80,7 @@ def simulate_year(year, look_back, precompute=True, data_dir='./', model_dir='./
             tickers,
             start_date=date(year, 1, 1),
             end_date=date(year + 1, 1, 1),
-            save_fred=True
+            save_fred=False
         )
         target.to_csv(target_file_save, index=False)
         features.to_csv(feature_file_save, index=False)
@@ -179,7 +179,7 @@ if __name__ == "__main__":
     if not os.path.exists(models_dir):
         os.makedirs(models_dir)
 
-    years = [2019, 2020, 2021, 2022, 2023, 2024, 2025]
+    years = [2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026]
 
     for year in years:
 
