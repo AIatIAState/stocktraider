@@ -16,6 +16,7 @@ from pattern_recognition import get_dtw_patterns
 from forecasting import get_forecast
 from fetch_prices import update_daily_bars
 from WeeklyMovers import (
+    DEFAULT_MIN_VOLUME,
     MOVERS_CACHE_LOCK,
     date_int_to_date,
     date_to_int,
@@ -37,7 +38,7 @@ from admin_jobs import (
     int_date_to_iso,
 )
 from scheduled_updates import get_scheduler_status, set_scheduler_enabled, start_scheduler, stop_scheduler
-from weekly_dashboard import build_weekly_alerts, build_weekly_insights
+from weekly_dashboard import build_weekly_alerts, build_weekly_insights, build_weekly_recommendation, build_ticker_signal
 from xg_boost_investor.Features import build_full_features, get_feature_explanations
 from xg_boost_investor.XGBoostInvestor import retrain_model
 
@@ -264,6 +265,7 @@ def search_symbols(q: str = Query(..., min_length=1), limit: int = Query(25, ge=
 def weekly_movers(
     direction: str | None = Query(None, description="top or bottom"),
     limit: int = Query(3, ge=1, le=25),
+    min_volume: int | None = Query(None, description="Minimum average daily volume filter"),
 ):
     conn = get_connection(readonly=True)
     try:
@@ -281,7 +283,7 @@ def weekly_movers(
             if direction_value not in ("top", "bottom"):
                 raise HTTPException(status_code=400, detail="direction must be top or bottom")
             with MOVERS_CACHE_LOCK:
-                cached = get_cached_movers(direction_value, end_int)
+                cached = get_cached_movers(direction_value, end_int, min_volume)
             if cached:
                 return {
                     "start": cached["start"],
@@ -305,7 +307,7 @@ def weekly_movers(
             start_date = date_int_to_date(start_int)
 
             sql_direction = "DESC" if direction_value == "top" else "ASC"
-            movers = fetch_weekly_movers(conn, start_int, end_int, sql_direction, limit)
+            movers = fetch_weekly_movers(conn, start_int, end_int, sql_direction, limit, min_volume)
             symbols = [mover["symbol"] for mover in movers]
             series_map = fetch_weekly_series(conn, symbols, start_int, end_int)
             for mover in movers:
@@ -317,6 +319,7 @@ def weekly_movers(
                     start_date.isoformat(),
                     end_date.isoformat(),
                     movers,
+                    min_volume,
                 )
             return {
                 "start": start_date.isoformat(),
@@ -326,8 +329,8 @@ def weekly_movers(
             }
 
         with MOVERS_CACHE_LOCK:
-            cached_top = get_cached_movers("top", end_int)
-            cached_bottom = get_cached_movers("bottom", end_int)
+            cached_top = get_cached_movers("top", end_int, min_volume)
+            cached_bottom = get_cached_movers("bottom", end_int, min_volume)
         if cached_top and cached_bottom:
             return {
                 "start": cached_top["start"],
@@ -350,8 +353,8 @@ def weekly_movers(
         start_int = row["min_date"] or range_start_int
         start_date = date_int_to_date(start_int)
 
-        top = fetch_weekly_movers(conn, start_int, end_int, "DESC", limit)
-        bottom = fetch_weekly_movers(conn, start_int, end_int, "ASC", limit)
+        top = fetch_weekly_movers(conn, start_int, end_int, "DESC", limit, min_volume)
+        bottom = fetch_weekly_movers(conn, start_int, end_int, "ASC", limit, min_volume)
         top_series = fetch_weekly_series(conn, [m["symbol"] for m in top], start_int, end_int)
         bottom_series = fetch_weekly_series(conn, [m["symbol"] for m in bottom], start_int, end_int)
         for mover in top:
@@ -359,8 +362,8 @@ def weekly_movers(
         for mover in bottom:
             mover["series"] = bottom_series.get(mover["symbol"], [])
         with MOVERS_CACHE_LOCK:
-            set_cached_movers("top", end_int, start_date.isoformat(), end_date.isoformat(), top)
-            set_cached_movers("bottom", end_int, start_date.isoformat(), end_date.isoformat(), bottom)
+            set_cached_movers("top", end_int, start_date.isoformat(), end_date.isoformat(), top, min_volume)
+            set_cached_movers("bottom", end_int, start_date.isoformat(), end_date.isoformat(), bottom, min_volume)
 
         return {
             "start": start_date.isoformat(),
@@ -383,8 +386,24 @@ def weekly_insights_refresh(end_date: str | None = None):
 
 
 @app.get("/api/weekly-alerts")
-def weekly_alerts(end_date: str | None = None):
-    return build_weekly_alerts(end_date=end_date)
+def weekly_alerts(
+    end_date: str | None = None,
+    min_volume: int | None = Query(None, description="Minimum average daily volume filter"),
+):
+    return build_weekly_alerts(end_date=end_date, min_volume=min_volume)
+
+
+@app.get("/api/weekly-recommendation")
+def weekly_recommendation(
+    risk: str = Query("mid", description="Risk preference: low, mid, or high"),
+    end_date: str | None = Query(None),
+):
+    return build_weekly_recommendation(risk_strategy=risk, end_date=end_date)
+
+
+@app.get("/api/ticker-signal")
+def ticker_signal(symbol: str = Query(..., min_length=1)):
+    return build_ticker_signal(symbol)
 
 
 @app.get("/api/bars")
