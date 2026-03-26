@@ -10,7 +10,8 @@ import SimilarCharts from '../components/charts/SimilarCharts.tsx'
 import { ForecastCharts } from '../components/charts/ForecastCharts.tsx'
 import PageHeader from '../components/PageHeader'
 import { GradientText } from '../themes/styles'
-import {StockConditions} from "../components/charts/StockConditions.tsx";
+import { StockConditions } from "../components/charts/StockConditions.tsx"
+import TickerSignalBadge from '../components/TickerSignalBadge'
 
 export default function DataSearchPage() {
   const [bars, setBars] = useState<Bar[]>([])
@@ -27,8 +28,9 @@ export default function DataSearchPage() {
       <Container maxWidth="lg" sx={{ py: { xs: 4, md: 6 } }}>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <StockSearch setBars={setBars} setSymbol={setSymbol} />
+          {symbol && <TickerSignalBadge symbol={symbol} />}
           <StockCharts bars={bars} symbol={symbol} />
-          <StockConditions symbol={symbol}/>
+          <StockConditions symbol={symbol} />
           <SimilarCharts bars={bars} symbol={symbol} />
           <ForecastCharts symbol={symbol} />
           <BarsTable bars={bars} />

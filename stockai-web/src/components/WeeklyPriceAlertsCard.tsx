@@ -4,17 +4,20 @@ import {
   CardContent,
   Chip,
   Container,
+  FormControlLabel,
   Grid,
   Stack,
+  Switch,
   Table,
   TableBody,
   TableCell,
   TableHead,
   TableRow,
   TableContainer,
+  Tooltip,
   Typography,
 } from "@mui/material";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   fetchWeeklyAlerts,
   fetchWeeklyInsights,
@@ -26,6 +29,8 @@ import StatCard from "./charts/StatCard";
 import { formatSymbol } from "../utils/formatSymbol";
 import WeeklyMarketInsightsCard from "./WeeklyMarketInsightsCard";
 import { GradientOverline } from "../themes/styles";
+
+const DEFAULT_MIN_VOLUME = 2_000_000;
 
 function formatPct(value: number) {
   const sign = value > 0 ? "+" : "";
@@ -129,32 +134,28 @@ export default function WeeklyPriceAlertsCard() {
   const [insightsModel, setInsightsModel] = useState<string | null>(null);
   const [insightsError, setInsightsError] = useState<string | null>(null);
   const [insightsLoading, setInsightsLoading] = useState(true);
+  const [volumeFilter, setVolumeFilter] = useState(true);
 
-  useEffect(() => {
+  const loadAlerts = useCallback((useVolumeFilter: boolean) => {
     let active = true;
     setLoading(true);
-    fetchWeeklyAlerts()
+    setError(null);
+    const minVolume = useVolumeFilter ? DEFAULT_MIN_VOLUME : undefined;
+    fetchWeeklyAlerts(minVolume)
       .then((response) => {
-        if (!active) {
-          return;
-        }
+        if (!active) return;
         setAlerts(response.alerts);
         setFeatured(response.featured ?? []);
         setRange({ start: response.start, end: response.end });
-        setError(null);
       })
       .catch((err) => {
-        if (!active) {
-          return;
-        }
+        if (!active) return;
         const message =
           err instanceof Error ? err.message : "Failed to load price alerts.";
         setError(message);
       })
       .finally(() => {
-        if (!active) {
-          return;
-        }
+        if (!active) return;
         setLoading(false);
       });
 
@@ -164,30 +165,28 @@ export default function WeeklyPriceAlertsCard() {
   }, []);
 
   useEffect(() => {
+    return loadAlerts(volumeFilter);
+  }, [volumeFilter, loadAlerts]);
+
+  useEffect(() => {
     let active = true;
     setInsightsLoading(true);
     fetchWeeklyInsights()
       .then((response) => {
-        if (!active) {
-          return;
-        }
+        if (!active) return;
         setInsights(response.market_insights ?? []);
         setInsightsNote(response.note ?? null);
         setInsightsModel(response.model ?? null);
         setInsightsError(null);
       })
       .catch((err) => {
-        if (!active) {
-          return;
-        }
+        if (!active) return;
         const message =
           err instanceof Error ? err.message : "Failed to load insights.";
         setInsightsError(message);
       })
       .finally(() => {
-        if (!active) {
-          return;
-        }
+        if (!active) return;
         setInsightsLoading(false);
       });
 
@@ -226,7 +225,25 @@ export default function WeeklyPriceAlertsCard() {
               <Stack spacing={3}>
                 {featured.length ? (
                   <Stack spacing={1.5}>
-                    <GradientOverline>Weekly Spotlight</GradientOverline>
+                    <Stack direction="row" alignItems="center" justifyContent="space-between">
+                      <GradientOverline>Weekly Spotlight</GradientOverline>
+                      <Tooltip title="Filter out small companies (< 2M avg daily volume)">
+                        <FormControlLabel
+                          control={
+                            <Switch
+                              checked={volumeFilter}
+                              onChange={(_, checked) => setVolumeFilter(checked)}
+                              size="small"
+                            />
+                          }
+                          label={
+                            <Typography variant="caption" color="text.secondary">
+                              Filter out small companies
+                            </Typography>
+                          }
+                        />
+                      </Tooltip>
+                    </Stack>
                     <Grid container spacing={2}>
                       {featured.map((alert) => (
                         <Grid

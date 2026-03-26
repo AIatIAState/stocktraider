@@ -1,0 +1,6 @@
+requests
+python-dotenv
+ragas>=0.2
+openai>=1.0
+matplotlib
+numpy
