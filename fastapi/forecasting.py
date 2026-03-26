@@ -8,11 +8,24 @@ from darts.utils.utils import SeasonalityMode
 from matplotlib import pyplot as plt
 
 from connector import get_connection
+import threading
+import time as _time
 import warnings
 from sklearn.exceptions import DataConversionWarning
 warnings.filterwarnings('ignore', category=UserWarning, module='sklearn')
 
+FORECAST_CACHE_TTL_SECONDS = 86400  # 24 hours
+FORECAST_CACHE_LOCK = threading.Lock()
+FORECAST_CACHE: dict[str, dict] = {}
+
+
 def get_forecast(symbol, timeframe, forecast_length=7):
+    cache_key = f"{symbol}:{timeframe}:{forecast_length}"
+    with FORECAST_CACHE_LOCK:
+        cached = FORECAST_CACHE.get(cache_key)
+        if cached and (_time.time() - cached["timestamp"]) < FORECAST_CACHE_TTL_SECONDS:
+            return cached["payload"]
+
     where = ["symbol = ?", "timeframe = ?"]
     sql = f"""
         SELECT symbol, per, date, time, open, high, low, close, volume, openint, timeframe
@@ -125,7 +138,10 @@ def get_forecast(symbol, timeframe, forecast_length=7):
         ]
         results.append({"name": model_name, "summary": model_summary, "forecast": result_dict})
 
-    return {'results': results}
+    result = {'results': results}
+    with FORECAST_CACHE_LOCK:
+        FORECAST_CACHE[cache_key] = {"timestamp": _time.time(), "payload": result}
+    return result
 
 if __name__ == "__main__":
     print(get_forecast("AAPL.US", "daily"))

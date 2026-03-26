@@ -1,7 +1,13 @@
 from dtaidistance import dtw
 import datetime
+import threading
+import time
 import numpy as np
 from connector import get_connection
+
+PATTERNS_CACHE_TTL_SECONDS = 86400  # 24 hours
+PATTERNS_CACHE_LOCK = threading.Lock()
+PATTERNS_CACHE: dict[str, dict] = {}
 
 
 def normalize(series):
@@ -13,6 +19,12 @@ def normalize(series):
 
 
 def get_dtw_patterns(symbol, timeframe, trend_segment_length=7, min_similarity_score=95):
+    cache_key = f"{symbol}:{timeframe}:{trend_segment_length}:{min_similarity_score}"
+    with PATTERNS_CACHE_LOCK:
+        cached = PATTERNS_CACHE.get(cache_key)
+        if cached and (time.time() - cached["timestamp"]) < PATTERNS_CACHE_TTL_SECONDS:
+            return cached["payload"]
+
     where = ["symbol = ?", "timeframe = ?"]
     sql = f"""
         SELECT symbol, per, date, time, open, high, low, close, volume, openint, timeframe
@@ -82,4 +94,7 @@ def get_dtw_patterns(symbol, timeframe, trend_segment_length=7, min_similarity_s
         if not has_overlap:
             filtered_paths.append(path)
 
-    return {"results": filtered_paths}
+    result = {"results": filtered_paths}
+    with PATTERNS_CACHE_LOCK:
+        PATTERNS_CACHE[cache_key] = {"timestamp": time.time(), "payload": result}
+    return result

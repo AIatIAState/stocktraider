@@ -2,6 +2,8 @@ import datetime
 import logging
 import os
 import sqlite3
+import threading
+import time
 from datetime import timedelta
 
 import pandas as pd
@@ -48,6 +50,13 @@ app = FastAPI()
 LOGGER = logging.getLogger("uvicorn.error")
 
 MAX_LIMIT = 50000
+CACHE_TTL_SECONDS = 86400  # 24 hours
+
+BARS_CACHE_LOCK = threading.Lock()
+BARS_CACHE: dict[str, dict] = {}
+
+CONDITIONS_CACHE_LOCK = threading.Lock()
+CONDITIONS_CACHE: dict[str, dict] = {}
 
 app.add_middleware(
     CORSMiddleware,
@@ -421,6 +430,13 @@ def get_bars(
 
     if order_value not in ("asc", "desc"):
         raise HTTPException(status_code=400, detail="order must be 'asc' or 'desc'")
+
+    cache_key = f"{symbol_value}:{timeframe_value}:{start}:{end}:{order_value}:{limit}"
+    with BARS_CACHE_LOCK:
+        cached = BARS_CACHE.get(cache_key)
+        if cached and (time.time() - cached["timestamp"]) < CACHE_TTL_SECONDS:
+            return cached["payload"]
+
     order_sql = "ASC" if order_value == "asc" else "DESC"
 
     where = ["symbol = ?", "timeframe = ?"]
@@ -448,7 +464,10 @@ def get_bars(
     finally:
         conn.close()
 
-    return {"results": [dict(row) for row in rows]}
+    result = {"results": [dict(row) for row in rows]}
+    with BARS_CACHE_LOCK:
+        BARS_CACHE[cache_key] = {"timestamp": time.time(), "payload": result}
+    return result
 
 @app.get("/api/getPatterns")
 def get_patterns(symbol: str = Query(..., min_length=1),
@@ -469,6 +488,12 @@ def get_forecasts(symbol: str = Query(..., min_length=1),
 @app.get("/api/getCurrentTickerConditions")
 def get_market_conditions(symbol: str = Query(..., min_length=1)):
     today = datetime.date.today()
+    cache_key = f"{symbol.strip().upper()}:{today.isoformat()}"
+    with CONDITIONS_CACHE_LOCK:
+        cached = CONDITIONS_CACHE.get(cache_key)
+        if cached and (time.time() - cached["timestamp"]) < CACHE_TTL_SECONDS:
+            return cached["payload"]
+
     market_conditions, _ = build_full_features([symbol.replace(".US", "")], today, today)
     feature_explanations = get_feature_explanations()
     xgboost = XGBoostInvestor.XGBoostInvestor()
@@ -477,5 +502,8 @@ def get_market_conditions(symbol: str = Query(..., min_length=1)):
     market_conditions_df = market_conditions_df.reset_index(drop=True)
     X_test, _, _, _ = xgboost.prepare_predictions(market_conditions_df, pd.DataFrame([{'ret_1d': 0}]))
     prediction = xgboost.predict(X_test)
-    return {"market_conditions": market_conditions.iloc[-1].to_dict(), "feature_explanations": feature_explanations,
-            "prediction": float(prediction[0])}
+    result = {"market_conditions": market_conditions.iloc[-1].to_dict(), "feature_explanations": feature_explanations,
+              "prediction": float(prediction[0])}
+    with CONDITIONS_CACHE_LOCK:
+        CONDITIONS_CACHE[cache_key] = {"timestamp": time.time(), "payload": result}
+    return result
