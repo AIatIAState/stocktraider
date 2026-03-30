@@ -5,6 +5,7 @@ import sqlite3
 import threading
 import time
 from datetime import timedelta
+from math import exp
 
 import pandas as pd
 from fastapi import FastAPI, HTTPException, Query, Request
@@ -13,12 +14,11 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from connector import DB_PATH, get_connection
-from xg_boost_investor import XGBoostInvestor, Features
+from xg_boost_investor import XGBoostInvestor
 from pattern_recognition import get_dtw_patterns
 from forecasting import get_forecast
 from fetch_prices import update_daily_bars
 from WeeklyMovers import (
-    DEFAULT_MIN_VOLUME,
     MOVERS_CACHE_LOCK,
     date_int_to_date,
     date_to_int,
@@ -488,6 +488,8 @@ def get_forecasts(symbol: str = Query(..., min_length=1),
 @app.get("/api/getCurrentTickerConditions")
 def get_market_conditions(symbol: str = Query(..., min_length=1)):
     today = datetime.date.today()
+    if today.weekday() >= 5:  # If today is Saturday or Sunday, use the previous Friday
+        today -= timedelta(days=today.weekday() - 4)
     cache_key = f"{symbol.strip().upper()}:{today.isoformat()}"
     with CONDITIONS_CACHE_LOCK:
         cached = CONDITIONS_CACHE.get(cache_key)
@@ -500,7 +502,7 @@ def get_market_conditions(symbol: str = Query(..., min_length=1)):
     xgboost.load('xg_boost_investor/model_save/model/xgboost_investor')
     market_conditions_df = pd.DataFrame(market_conditions)
     market_conditions_df = market_conditions_df.reset_index(drop=True)
-    X_test, _, _, _ = xgboost.prepare_predictions(market_conditions_df, pd.DataFrame([{'ret_1d': 0}]))
+    X_test, _, _, _ = xgboost.prepare_predictions(market_conditions_df, pd.DataFrame({'ret_1d': [0]}))
     prediction = xgboost.predict(X_test)
     result = {"market_conditions": market_conditions.iloc[-1].to_dict(), "feature_explanations": feature_explanations,
               "prediction": float(prediction[0])}

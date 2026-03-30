@@ -30,9 +30,6 @@ class XGBoostInvestor:
         self.buffer_size = 100
 
     def prepare_predictions(self, features_df, target_series):
-        dates = np.array(features_df["Date"].values)
-        tickers = np.array(features_df["ticker"].values)
-
         if isinstance(target_series, np.ndarray):
             target_series = pd.Series(target_series, index=features_df.index).reset_index(drop=True)
         else:
@@ -45,6 +42,10 @@ class XGBoostInvestor:
         features_df['values'] = target_series
         features_df = features_df.sort_values(by="Date")
         target_series = features_df['values']
+
+        #Extract dates and tickers before dropping columns
+        dates = np.array(features_df["Date"].values)
+        tickers = np.array(features_df["ticker"].values)
 
         # remove illegal features, ticker, date, and target values
         features_df = features_df.drop(columns=['Date', 'ticker', 'values'])
@@ -276,14 +277,17 @@ if __name__ == "__main__":
     #retrain_model()
     symbol = "AAPL"
     today = date.today()
+    if today.weekday() >= 5:  # If today is Saturday or Sunday, use the previous Friday
+        today -= timedelta(days=today.weekday() - 4)
     market_conditions, _ = build_full_features([symbol.replace(".US", "")], today, today)
     feature_explanations = get_feature_explanations()
     xgboost = XGBoostInvestor()
     xgboost.load('model_save/model/xgboost_investor')
     market_conditions_df = pd.DataFrame(market_conditions)
     market_conditions_df = market_conditions_df.reset_index(drop=True)
-    X_test, _, _, _ = xgboost.prepare_predictions(market_conditions_df, pd.DataFrame([{'ret_1d': 0}]))
+    X_test, _, _, _ = xgboost.prepare_predictions(market_conditions_df, pd.DataFrame({'ret_1d': [0]}))
     prediction = xgboost.predict(X_test)
-
+    result = {"market_conditions": market_conditions.iloc[-1].to_dict(), "feature_explanations": feature_explanations,
+              "prediction": float(prediction[0])}
     print({"market_conditions": market_conditions.iloc[-1].to_dict(), "feature_explanations": feature_explanations,
             "prediction": float(prediction[0])})
