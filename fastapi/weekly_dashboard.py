@@ -819,7 +819,7 @@ def _get_feature_summaries(symbols: list[str]) -> list[dict]:
     today = _dt.date.today()
     for symbol in symbols[:15]:  # cap to avoid excessive API calls
         try:
-            features_df, _ = build_full_features([symbol], today, today)
+            features_df, _ = build_full_features([symbol], today=True)
             if features_df.empty:
                 continue
             row = features_df.iloc[-1]
@@ -869,7 +869,7 @@ def build_ticker_signal(symbol: str) -> dict:
     try:
         from xg_boost_investor.Features import build_full_features
         today = _dt.date.today()
-        features_df, _ = build_full_features([symbol], today, today)
+        features_df, _ = build_full_features([symbol], today=True)
         if not features_df.empty:
             row = features_df.iloc[-1]
             feature_snapshot = {

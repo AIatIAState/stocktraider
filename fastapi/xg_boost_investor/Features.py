@@ -355,7 +355,12 @@ def time_embeddings(start_date, end_date):
 
 
 
-def build_full_features(tickers, start_date=date(2021, 1, 1), end_date=date(2024, 1, 1), explainable=False, alias_tag=None, save_fred=False):
+def build_full_features(tickers, start_date=date(2021, 1, 1), end_date=date(2024, 1, 1), today=False, alias_tag=None, save_fred=False):
+
+    #Give cushion for inactive trading periods
+    if today:
+        start_date = date.today() - timedelta(6)
+        end_date = date.today()
 
     before_start_date = start_date - timedelta(days=400)
     after_end_date = end_date + timedelta(days=10)
@@ -470,8 +475,9 @@ def build_full_features(tickers, start_date=date(2021, 1, 1), end_date=date(2024
 
     # ---- Forward Return Target (1d) ----
     future_1d_return = features.groupby('ticker')['ret_1d'].shift(-1)
-
     features = features[features['Date'] <= end_date_datetime]
+    if today:
+        features = features[features['Date'] <= features['Date'].max()]
 
     return features, future_1d_return[:len(features)]
 

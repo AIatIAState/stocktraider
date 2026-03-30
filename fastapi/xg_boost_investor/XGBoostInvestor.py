@@ -275,16 +275,12 @@ def retrain_model(save_dir='./model_save', start_date=date.today()):
 
 if __name__ == "__main__":
     #retrain_model()
-    symbol = "AAPL"
-    today = date.today()
-    if today.weekday() >= 5:  # If today is Saturday or Sunday, use the previous Friday
-        today -= timedelta(days=today.weekday() - 4)
-    market_conditions, _ = build_full_features([symbol.replace(".US", "")], today, today)
+    symbol = "AAPL.US"
+    market_conditions, _ = build_full_features([symbol.replace(".US", "")], today=True)
     feature_explanations = get_feature_explanations()
     xgboost = XGBoostInvestor()
     xgboost.load('model_save/model/xgboost_investor')
     market_conditions_df = pd.DataFrame(market_conditions)
-    market_conditions_df = market_conditions_df.reset_index(drop=True)
     X_test, _, _, _ = xgboost.prepare_predictions(market_conditions_df, pd.DataFrame({'ret_1d': [0]}))
     prediction = xgboost.predict(X_test)
     result = {"market_conditions": market_conditions.iloc[-1].to_dict(), "feature_explanations": feature_explanations,
