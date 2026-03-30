@@ -491,10 +491,10 @@ def get_market_conditions(symbol: str = Query(..., min_length=1)):
     if today.weekday() >= 5:  # If today is Saturday or Sunday, use the previous Friday
         today -= timedelta(days=today.weekday() - 4)
     cache_key = f"{symbol.strip().upper()}:{today.isoformat()}"
-    with CONDITIONS_CACHE_LOCK:
-        cached = CONDITIONS_CACHE.get(cache_key)
-        if cached and (time.time() - cached["timestamp"]) < CACHE_TTL_SECONDS:
-            return cached["payload"]
+    # with CONDITIONS_CACHE_LOCK:
+    #     cached = CONDITIONS_CACHE.get(cache_key)
+    #     if cached and (time.time() - cached["timestamp"]) < CACHE_TTL_SECONDS:
+    #         return cached["payload"]
 
     market_conditions, _ = build_full_features([symbol.replace(".US", "")], today, today)
     feature_explanations = get_feature_explanations()
@@ -506,6 +506,6 @@ def get_market_conditions(symbol: str = Query(..., min_length=1)):
     prediction = xgboost.predict(X_test)
     result = {"market_conditions": market_conditions.iloc[-1].to_dict(), "feature_explanations": feature_explanations,
               "prediction": float(prediction[0])}
-    with CONDITIONS_CACHE_LOCK:
-        CONDITIONS_CACHE[cache_key] = {"timestamp": time.time(), "payload": result}
+    # with CONDITIONS_CACHE_LOCK:
+    #     CONDITIONS_CACHE[cache_key] = {"timestamp": time.time(), "payload": result}
     return result
