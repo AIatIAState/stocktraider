@@ -1,5 +1,5 @@
 
-import {Box, Card, CardContent, Container} from "@mui/material";
+import { Card, CardContent, Container} from "@mui/material";
 import {useEffect, useState, type SetStateAction} from "react";
 import Typography from "@mui/material/Typography";
 import Stack from "@mui/material/Stack";
