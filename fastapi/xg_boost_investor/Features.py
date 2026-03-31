@@ -365,10 +365,10 @@ def build_full_features(tickers, start_date=date(2021, 1, 1), end_date=date(2024
     before_start_date = start_date - timedelta(days=400)
     after_end_date = end_date + timedelta(days=10)
     # Download multi-ticker price data
-    data = yf.download(tickers, start=before_start_date.strftime("%Y-%m-%d"), interval="1d", end=after_end_date, group_by='ticker', auto_adjust=True)
-    spy = yf.download("SPY", start=before_start_date.strftime("%Y-%m-%d"), interval="1d", end=after_end_date)['Close']['SPY']
-    vix = yf.download("^VIX", start=before_start_date.strftime("%Y-%m-%d"), interval="1d", end=after_end_date)['Close']
-    rsp = yf.download("RSP", start=before_start_date.strftime("%Y-%m-%d"), interval="1d", end=after_end_date)['Close']['RSP']
+    data = yf.download(tickers, start=before_start_date.strftime("%Y-%m-%d"), interval="1d", end=after_end_date, group_by='ticker', threads=False, auto_adjust=True)
+    spy = yf.download("SPY", start=before_start_date.strftime("%Y-%m-%d"), interval="1d", end=after_end_date, threads=False)['Close']['SPY']
+    vix = yf.download("^VIX", start=before_start_date.strftime("%Y-%m-%d"), interval="1d", end=after_end_date, threads=False)['Close']
+    rsp = yf.download("RSP", start=before_start_date.strftime("%Y-%m-%d"), interval="1d", end=after_end_date, threads=False)['Close']['RSP']
 
     feature_list = []
 
@@ -476,8 +476,9 @@ def build_full_features(tickers, start_date=date(2021, 1, 1), end_date=date(2024
     # ---- Forward Return Target (1d) ----
     future_1d_return = features.groupby('ticker')['ret_1d'].shift(-1)
     features = features[features['Date'] <= end_date_datetime]
+
     if today:
-        features = features[features['Date'] <= features['Date'].max()]
+        features = features[features['Date'] == features['Date'].max()]
 
     return features, future_1d_return[:len(features)]
 

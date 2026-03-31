@@ -6,6 +6,7 @@ import WeeklyPriceAlertsCard from "../components/WeeklyPriceAlertsCard";
 import WeeklyRecommendationCard from "../components/WeeklyRecommendationCard";
 import PageHeader from "../components/PageHeader";
 import { GradientText } from "../themes/styles";
+import {DailyTabularInsightsSection} from "../components/DailyTabularInsightsSection.tsx";
 
 export default function Dashboard() {
   return (
@@ -21,6 +22,7 @@ export default function Dashboard() {
         <WeeklyRecommendationCard />
       </Container>
       <WeeklyInsightsSection />
+        <DailyTabularInsightsSection />
       <Footer />
     </>
   );

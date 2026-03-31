@@ -5,7 +5,6 @@ import sqlite3
 import threading
 import time
 from datetime import timedelta
-from math import exp
 
 import pandas as pd
 from fastapi import FastAPI, HTTPException, Query, Request
@@ -42,7 +41,7 @@ from admin_jobs import (
 from scheduled_updates import get_scheduler_status, set_scheduler_enabled, start_scheduler, stop_scheduler
 from weekly_dashboard import build_weekly_alerts, build_weekly_insights, build_weekly_recommendation, build_ticker_signal
 from xg_boost_investor.Features import build_full_features, get_feature_explanations
-from xg_boost_investor.XGBoostInvestor import retrain_model
+from xg_boost_investor.symbol_collector import get_sp500_at_date
 
 DEFAULT_BOOTSTRAP_START = "2020-01-01"
 
@@ -57,6 +56,9 @@ BARS_CACHE: dict[str, dict] = {}
 
 CONDITIONS_CACHE_LOCK = threading.Lock()
 CONDITIONS_CACHE: dict[str, dict] = {}
+
+PORTFOLIO_CACHE_LOCK = threading.Lock()
+PORTFOLIO_CACHE: dict[str, dict] = {}
 
 app.add_middleware(
     CORSMiddleware,
@@ -493,16 +495,44 @@ def get_market_conditions(symbol: str = Query(..., min_length=1)):
         if cached and (time.time() - cached["timestamp"]) < CACHE_TTL_SECONDS:
             return cached["payload"]
 
-    market_conditions, _ = build_full_features([symbol.replace(".US", "")], today=True)
-    feature_explanations = get_feature_explanations()
-    xgboost = XGBoostInvestor.XGBoostInvestor()
-    xgboost.load('xg_boost_investor/model_save/model/xgboost_investor')
-    market_conditions_df = pd.DataFrame(market_conditions)
-    market_conditions_df = market_conditions_df.reset_index(drop=True)
-    X_test, _, _, _ = xgboost.prepare_predictions(market_conditions_df, pd.DataFrame({'ret_1d': [0]}))
-    prediction = xgboost.predict(X_test)
-    result = {"market_conditions": market_conditions.iloc[-1].to_dict(), "feature_explanations": feature_explanations,
-              "prediction": float(prediction[0])}
-    with CONDITIONS_CACHE_LOCK:
+        market_conditions, _ = build_full_features([symbol.replace(".US", "")], today=True)
+        feature_explanations = get_feature_explanations()
+        xgboost = XGBoostInvestor.XGBoostInvestor()
+        xgboost.load('xg_boost_investor/model_save/model/xgboost_investor')
+        market_conditions_df = pd.DataFrame(market_conditions)
+        market_conditions_df = market_conditions_df.reset_index(drop=True)
+        X_test, _, _, _ = xgboost.prepare_predictions(market_conditions_df, pd.DataFrame({'ret_1d': [0]}))
+        prediction = xgboost.predict(X_test)
+        result = {"market_conditions": market_conditions.iloc[-1].to_dict(), "feature_explanations": feature_explanations,
+                  "prediction": float(prediction[0])}
+
         CONDITIONS_CACHE[cache_key] = {"timestamp": time.time(), "payload": result}
+    return result
+@app.get("/api/getPortfolioActions")
+def get_portfolio_actions():
+    today = datetime.date.today()
+    cache_key = f"{today.strftime("%Y%m%d")}"
+    with CONDITIONS_CACHE_LOCK:
+        cached = PORTFOLIO_CACHE.get(cache_key)
+        if cached and (time.time() - cached["timestamp"]) < CACHE_TTL_SECONDS:
+            return cached["payload"]
+
+
+        today = datetime.date.today()
+        sp500_tickers = get_sp500_at_date(today)
+        market_conditions, _ = build_full_features(sp500_tickers, today=True)
+        xgboost = XGBoostInvestor.XGBoostInvestor()
+        xgboost.load('xg_boost_investor/model_save/model/xgboost_investor')
+        market_conditions_df = pd.DataFrame(market_conditions)
+        X_test, _, _, ticker_list = xgboost.prepare_predictions(market_conditions_df, pd.DataFrame([{'ret_1d': 0}] * len(market_conditions_df)))
+        prediction = xgboost.predict(X_test)
+        output = pd.DataFrame({
+            "y_pred": prediction,
+            "tickers": ticker_list
+        })
+        top_n = output.nlargest(20, 'y_pred')
+        top_n = top_n.sort_values(by='y_pred', ascending=False)
+        result = {"tickers": [ticker.split("_")[0] for ticker in top_n["tickers"]], "predictions": [float(pred) for pred in top_n["y_pred"]]}
+
+        PORTFOLIO_CACHE[cache_key] = {"timestamp": time.time(), "payload": result}
     return result
