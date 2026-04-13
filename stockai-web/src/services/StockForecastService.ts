@@ -6,7 +6,7 @@ export interface StockForecast {
     forecast: [
         {
             date: number,
-            open: number
+            close: number
         }
         ]
 }
@@ -15,7 +15,7 @@ export async function fetchStockForecasts(stockSymbol: string, timeframe: "daily
         const params = new URLSearchParams({
             symbol: stockSymbol,
             timeframe: timeframe,
-            forecast_length: forecastLength ? forecastLength.toString() : "7"
+            forecast_length: forecastLength ? forecastLength.toString() : "10"
         })
         const response = await fetch(`${API_BASE}/api/getForecasts?${params.toString()}`)
         return response.json() as Promise<{results: StockForecast[]}>

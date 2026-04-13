@@ -17,7 +17,7 @@ function getDateFromYYYYMMDD(yyyymmdd: string): Date {
     return new Date(Date.UTC(year, month, day));
 }
 export interface StockScatterChartProps {
-        bars: [{ date: number, open: number }],
+        bars: [{ date: number, close: number }],
         symbol: string,
         title?: string,
         desc?: string,
@@ -25,34 +25,34 @@ export interface StockScatterChartProps {
 }
 export default function StockScatterChart(props: StockScatterChartProps) {
 
-    const { opens, dates, min, max } = useMemo(() => {
+    const { closes, dates, min, max } = useMemo(() => {
         if (!props.bars?.length) {
-            return { opens: [], dates: [], min: 0, max: 0 };
+            return { closes: [], dates: [], min: 0, max: 0 };
         }
 
         let min = Number.POSITIVE_INFINITY;
         let max = Number.NEGATIVE_INFINITY;
 
-        const opens: number[] = [];
+        const closes: number[] = [];
         const dates: Date[] = [];
 
         props.bars.forEach((item) => {
-            const open = item.open ?? 0;
+            const close = item.close ?? 0;
             const parsedDate = getDateFromYYYYMMDD(item.date.toString());
 
-            opens.push(open);
+            closes.push(close);
             dates.push(parsedDate);
 
-            if (item.open != null) {
-                if (item.open < min) min = item.open;
-                if (item.open > max) max = item.open;
+            if (item.close != null) {
+                if (item.close < min) min = item.close;
+                if (item.close > max) max = item.close;
             }
         });
 
         if (min === Number.POSITIVE_INFINITY) min = 0;
         if (max === Number.NEGATIVE_INFINITY) max = 0;
 
-        return { opens, dates, min, max };
+        return { closes, dates, min, max };
     }, [props.bars]);
 
     if(props.bars.length <= 0) {
@@ -62,7 +62,7 @@ export default function StockScatterChart(props: StockScatterChartProps) {
     const displaySymbol = formatSymbol(symbol)
   const heading = props.title ? props.title : displaySymbol + " Price"
     const desc = props.desc ? props.desc : null
-    const percentage = ((props.bars[props.bars.length - 1].open! - props.bars[0].open!) / props.bars[0].open! * 100)
+    const percentage = ((props.bars[props.bars.length - 1].close! - props.bars[0].close!) / props.bars[0].close! * 100)
   return (
     <Card variant="outlined" sx={{ width: '100%', borderRadius: 3 }}>
       <CardContent>
@@ -114,7 +114,7 @@ export default function StockScatterChart(props: StockScatterChartProps) {
               stack: 'total',
               area: true,
               stackOrder: 'ascending',
-              data: opens,
+              data: closes,
         }]}
           margin={{ left: 0, right: 20, top: 20, bottom: 0 }}
           grid={{ horizontal: true }}

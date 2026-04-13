@@ -484,7 +484,7 @@ def get_forecasts(symbol: str = Query(..., min_length=1),
                   timeframe: str = Query("daily"),
                   forecast_length: int | None = Query(None, )):
     if forecast_length is None:
-        forecast_length = 7
+        forecast_length = 10
     return get_forecast(symbol, timeframe, forecast_length)
 
 @app.get("/api/getCurrentTickerConditions")

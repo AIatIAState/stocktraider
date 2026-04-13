@@ -102,7 +102,7 @@ def analyze_portfolio(portfolio_data):
     return df, metrics
 
 
-def create_visualizations(df, year, output_dir='./'):
+def create_visualizations(df, year, output_dir='./', label=""):
     # Chart 1: Portfolio Value Over Time
     fig, ax = plt.subplots(figsize=(12, 6))
     ax.plot(df['Date'], df['PortfolioValue'], linewidth=2, color='#1f77b4')
@@ -114,7 +114,7 @@ def create_visualizations(df, year, output_dir='./'):
     ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'${x:,.0f}'))
     plt.xticks(rotation=45)
     plt.tight_layout()
-    plt.savefig(f'{output_dir}portfolio_value_{year}.png', dpi=300, bbox_inches='tight')
+    plt.savefig(f'{output_dir}portfolio_value_{year}{label}.png', dpi=300, bbox_inches='tight')
     plt.close()
 
     # Chart 2: ROI Over Time
@@ -129,11 +129,11 @@ def create_visualizations(df, year, output_dir='./'):
     ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, p: f'{x:.1f}%'))
     plt.xticks(rotation=45)
     plt.tight_layout()
-    plt.savefig(f'{output_dir}roi_over_time_{year}.png', dpi=300, bbox_inches='tight')
+    plt.savefig(f'{output_dir}roi_over_time_{year}{label}.png', dpi=300, bbox_inches='tight')
     plt.close()
 
 
-def export_metrics(metrics, year, output_dir='./'):
+def export_metrics(metrics, year, output_dir='./', label=""):
     wb = Workbook()
     sheet = wb.active
     sheet.title = 'Portfolio Metrics'
@@ -212,7 +212,7 @@ def export_metrics(metrics, year, output_dir='./'):
         sheet.row_dimensions[row].height = 30
         row += 1
 
-    wb.save(f'{output_dir}portfolio_metrics_{year}.xlsx')
+    wb.save(f'{output_dir}portfolio_metrics_{year}{label}.xlsx')
 
 
 # Example usage with sample data

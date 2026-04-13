@@ -20,26 +20,26 @@ function getDateFromYYYYMMDD(yyyymmdd: string): Date {
     return new Date(Date.UTC(year, month, day));
 }
 export function HistoricalPattern(props: HistoricalPatternCardProps){
-    const { historicalOpenSeries, historicalExtendedSeries, endDate } = useMemo(() => {
+    const { historicalCloseSeries, historicalExtendedSeries, endDate } = useMemo(() => {
         const endDate = new Date(props.historicalTrendStartDate)
         endDate.setDate(props.historicalTrendStartDate.getDate() + props.trendLength)
         const extendedDate = new Date(props.historicalTrendStartDate)
         extendedDate.setDate(props.historicalTrendStartDate.getDate() + (props.trendLength * 2))
-        const historicalOpenSeries: number[] = []
+        const historicalCloseSeries: number[] = []
         const historicalExtendedSeries: number[] = []
         props.bars.forEach((bar) => {
             const barDate = getDateFromYYYYMMDD(bar.date.toString())
             if(barDate >= props.historicalTrendStartDate && barDate <= endDate){
-                historicalOpenSeries.push(bar.open != null ? bar.open : 0)
+                historicalCloseSeries.push(bar.close != null ? bar.close : 0)
             }
             if(barDate >= endDate && barDate <= extendedDate){
-                historicalExtendedSeries.push(bar.open != null ? bar.open : 0)
+                historicalExtendedSeries.push(bar.close != null ? bar.close : 0)
             }
         })
-        return { historicalOpenSeries, historicalExtendedSeries, endDate}
+        return { historicalCloseSeries: historicalCloseSeries, historicalExtendedSeries, endDate}
     }, [props.bars, props.historicalTrendStartDate, props.trendLength])
 
-    const openSeriesValue = (historicalOpenSeries[historicalOpenSeries.length - 1] - historicalOpenSeries[0]) / historicalOpenSeries[0]
+    const closeSeriesValue = (historicalCloseSeries[historicalCloseSeries.length - 1] - historicalCloseSeries[0]) / historicalCloseSeries[0]
     const extendedSeriesValue = (historicalExtendedSeries[historicalExtendedSeries.length - 1] - historicalExtendedSeries[0]) / historicalExtendedSeries[0]
     return <Box
         sx={{
@@ -57,10 +57,10 @@ export function HistoricalPattern(props: HistoricalPatternCardProps){
         <TableCell>
             <StatCard
                 title=""
-                value={(openSeriesValue > 0 ? "+" : "-") + openSeriesValue.toFixed(2) + "%"}
+                value={(closeSeriesValue > 0 ? "+" : "-") + closeSeriesValue.toFixed(2) + "%"}
                 interval={""}
-                trend={openSeriesValue > 0 ? "up" : openSeriesValue < 0 ? "down": "neutral"}
-                data={historicalOpenSeries}
+                trend={closeSeriesValue > 0 ? "up" : closeSeriesValue < 0 ? "down": "neutral"}
+                data={historicalCloseSeries}
             />
         </TableCell>
         <TableCell>

@@ -125,7 +125,7 @@ class XGBoostInvestor:
 
 
     def build_model(self):
-        self.model = BaggingRegressor(
+         self.model = BaggingRegressor(
             n_estimators=100,
             max_samples=.8,
             max_features=.8,
@@ -133,7 +133,8 @@ class XGBoostInvestor:
             n_jobs=-1,
             random_state=42,
             oob_score=True,
-            estimator=XGBRegressor(
+            estimator=
+            XGBRegressor(
                 loss='squared_error',
                 learning_rate=0.05,
                 n_estimators=10,
@@ -142,8 +143,8 @@ class XGBoostInvestor:
                 colsample_bytree=0.8,
                 random_state=42,
                 verbose=0
-            ),
-        )
+            )
+         )
 
     def train(self, X_train, y_train):
         if self.model == None:
@@ -187,7 +188,7 @@ class XGBoostInvestor:
             raise ValueError("Model not trained yet. Call train() first.")
         X = self.x_scaler.transform(X_test)
         raw_predictions = self.model.predict(X)
-
+        # calibrated_pred = raw_predictions
         calibrated_pred = self.calibrator.predict(raw_predictions)
 
         unscaled_predictions = self.y_scaler.inverse_transform(calibrated_pred.reshape(-1, 1)).ravel()

@@ -34,7 +34,7 @@ async function getForecasts(
 export function ForecastCharts(props: ForecastChartsProps) {
   const [loading, setLoading] = useState(false);
   const [forecasts, setForecasts] = useState<StockForecast[]>([]);
-  const forecastLength = 7;
+  const forecastLength = 10;
 
   useEffect(() => {
     if (props.symbol === "") return;

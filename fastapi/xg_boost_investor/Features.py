@@ -5,7 +5,6 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta, date
 import requests
-from functools import lru_cache
 
 def rolling_return(df, window):
     return df.pct_change(window)
@@ -355,7 +354,7 @@ def time_embeddings(start_date, end_date):
 
 
 
-def build_full_features(tickers, start_date=date(2021, 1, 1), end_date=date(2024, 1, 1), today=False, alias_tag=None, save_fred=False):
+def build_full_features(tickers, start_date=date(2021, 1, 1), end_date=date(2024, 1, 1), today=False, alias_tag=None, save_fred=False, threads=False):
 
     #Give cushion for inactive trading periods
     if today:
@@ -365,10 +364,10 @@ def build_full_features(tickers, start_date=date(2021, 1, 1), end_date=date(2024
     before_start_date = start_date - timedelta(days=400)
     after_end_date = end_date + timedelta(days=10)
     # Download multi-ticker price data
-    data = yf.download(tickers, start=before_start_date.strftime("%Y-%m-%d"), interval="1d", end=after_end_date, group_by='ticker', threads=False, auto_adjust=True)
-    spy = yf.download("SPY", start=before_start_date.strftime("%Y-%m-%d"), interval="1d", end=after_end_date, threads=False)['Close']['SPY']
-    vix = yf.download("^VIX", start=before_start_date.strftime("%Y-%m-%d"), interval="1d", end=after_end_date, threads=False)['Close']
-    rsp = yf.download("RSP", start=before_start_date.strftime("%Y-%m-%d"), interval="1d", end=after_end_date, threads=False)['Close']['RSP']
+    data = yf.download(tickers, start=before_start_date.strftime("%Y-%m-%d"), interval="1d", end=after_end_date, group_by='ticker', threads=threads, auto_adjust=True)
+    spy = yf.download("SPY", start=before_start_date.strftime("%Y-%m-%d"), interval="1d", end=after_end_date, threads=threads)['Close']['SPY']
+    vix = yf.download("^VIX", start=before_start_date.strftime("%Y-%m-%d"), interval="1d", end=after_end_date, threads=threads)['Close']
+    rsp = yf.download("RSP", start=before_start_date.strftime("%Y-%m-%d"), interval="1d", end=after_end_date, threads=threads)['Close']['RSP']
 
     feature_list = []
 

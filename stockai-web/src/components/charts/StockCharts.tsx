@@ -95,7 +95,7 @@ export function StockCharts(props : StockChartsProps) {
                 <StockPieChart bars={chartBars}/>
             </Grid>
             <Grid size={{ xs: 12}}>
-                <StockScatterChart size={"big"} symbol={props.symbol} bars={chartBars as unknown as [{date: number, open: number}]}/>
+                <StockScatterChart size={"big"} symbol={props.symbol} bars={chartBars as unknown as [{date: number, close: number}]}/>
             </Grid>
         </Grid>
         </>
