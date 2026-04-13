@@ -84,6 +84,9 @@ export default function AppAppBar() {
             <Button component={RouterLink} to="/dashboard" color="inherit" size="small">
               Dashboard
             </Button>
+            <Button component={RouterLink} to="/about" color="inherit" size="small">
+              About
+            </Button>
             <ColorModeIconDropdown />
           </Stack>
         </Toolbar>

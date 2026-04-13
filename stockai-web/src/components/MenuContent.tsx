@@ -27,7 +27,7 @@ export default function MenuContent() {
 
     const secondaryListItems = [
         { text: 'Settings', icon: <SettingsRoundedIcon />, onClick: () => {} },
-        { text: 'About', icon: <InfoRoundedIcon />, onClick: () => {} },
+        { text: 'About', icon: <InfoRoundedIcon />, onClick: () => { navigate('/about') } },
         { text: 'Feedback', icon: <HelpRoundedIcon />, onClick: () => {} },
     ];
 
@@ -45,7 +45,7 @@ export default function MenuContent() {
       </List>
       <List dense>
         {secondaryListItems.map((item, index) => (
-          <ListItem key={index} disablePadding sx={{ display: 'block' }}>
+          <ListItem onClick={item.onClick} key={index} disablePadding sx={{ display: 'block' }}>
             <ListItemButton>
               <ListItemIcon>{item.icon}</ListItemIcon>
               <ListItemText primary={item.text} />
