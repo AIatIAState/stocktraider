@@ -12,8 +12,8 @@ import {
 import IconButton from '@mui/material/IconButton'
 import LinkedInIcon from '@mui/icons-material/LinkedIn'
 import GitHubIcon from '@mui/icons-material/GitHub'
-import masonPic from '../assets/masonPic.JPG' // dont make fun of the JPG
-// import ethanPic from '../assets/ethanPic.JPG' // you have to import like this for it to work
+import masonPic from '../assets/masonPic.JPG'
+import ethanPic from '../assets/ethanPic.JPG'
 import AppAppBar from '../components/AppAppBar'
 import Footer from '../components/Footer'
 import AppTheme from '../themes/AppTheme'
@@ -42,8 +42,9 @@ const AUTHORS: Author[] = [
   {
     name: 'Ethan Gruening',
     role: 'Full-Stack Developer',
-    bio: 'MS in AI student at Iowa State University',
-    skills: ['Lolygagging', 'frollicking', 'shenanigans', 'tomfoolery'],
+    bio: 'MS in AI student at Iowa State University. Background in software developement, machine learning, and a passion for creative applications of AI.',
+    skills: ['ML', 'Python', 'NumPy', 'TypeScript', 'React', 'FastAPI', 'Docker', 'SQLite'],
+    imageUrl: ethanPic,
     linkedInUrl: 'https://www.linkedin.com/in/ethan-gruening/',
     githubUrl: 'https://github.com/Ethan5026'
   },
