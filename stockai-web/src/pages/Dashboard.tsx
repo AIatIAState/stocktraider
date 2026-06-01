@@ -4,6 +4,7 @@ import Footer from "../components/Footer";
 import WeeklyInsightsSection from "../components/WeeklyInsightsSection";
 import WeeklyPriceAlertsCard from "../components/WeeklyPriceAlertsCard";
 import WeeklyRecommendationCard from "../components/WeeklyRecommendationCard";
+import WhatIfCard from "../components/WhatIfCard";
 import PageHeader from "../components/PageHeader";
 import { GradientText } from "../themes/styles";
 import {DailyTabularInsightsSection} from "../components/DailyTabularInsightsSection.tsx";
@@ -20,6 +21,9 @@ export default function Dashboard() {
       <WeeklyPriceAlertsCard />
       <Container maxWidth="lg" sx={{ py: { xs: 2, md: 3 } }}>
         <WeeklyRecommendationCard />
+      </Container>
+      <Container maxWidth="lg" sx={{ py: { xs: 2, md: 3 } }}>
+        <WhatIfCard />
       </Container>
       <WeeklyInsightsSection />
         <DailyTabularInsightsSection />

@@ -42,6 +42,7 @@ from scheduled_updates import get_scheduler_status, set_scheduler_enabled, start
 from weekly_dashboard import build_weekly_alerts, build_weekly_insights, build_weekly_recommendation, build_ticker_signal
 from xg_boost_investor.Features import build_full_features, get_feature_explanations
 from xg_boost_investor.symbol_collector import get_sp500_at_date
+from whatif_router import router as whatif_router
 
 DEFAULT_BOOTSTRAP_START = "2020-01-01"
 
@@ -67,6 +68,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(whatif_router)
 
 
 @app.on_event("startup")

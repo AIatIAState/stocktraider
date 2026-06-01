@@ -257,3 +257,32 @@ export type TickerSignalResponse = {
   model: string | null
   note: string | null
 }
+
+export type WhatIfRequest = {
+  scenario: string
+  tickers?: string[]
+  horizon_days?: number
+}
+
+export type TickerWhatIfPrediction = {
+  ticker: string
+  baseline_return: number
+  adjusted_return: number
+  delta: number
+  confidence: number
+  narrative: string
+}
+
+export type WhatIfResponse = {
+  scenario_summary: string
+  extracted_features: Record<string, number | null>
+  predictions: TickerWhatIfPrediction[]
+  disclaimer: string
+}
+
+export function postWhatIf(payload: WhatIfRequest) {
+  return requestJson<WhatIfResponse>('/api/whatif', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
