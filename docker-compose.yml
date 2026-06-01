@@ -1,5 +1,6 @@
 services:
   web:
+    image: ghcr.io/aiatiastate/stocktraider/frontend:latest
     build:
       context: ./stockai-web
       dockerfile: Dockerfile
@@ -8,6 +9,7 @@ services:
     depends_on:
       - fastapi
   fastapi:
+    image: ghcr.io/aiatiastate/stocktraider/fastapi:latest
     build:
       context: ./fastapi
       dockerfile: Dockerfile
