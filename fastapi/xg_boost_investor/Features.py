@@ -354,7 +354,7 @@ def time_embeddings(start_date, end_date):
 
 
 
-def build_full_features(tickers, start_date=date(2021, 1, 1), end_date=date(2024, 1, 1), today=False, alias_tag=None, save_fred=False, threads=False):
+def build_full_features(tickers, start_date=date(2021, 1, 1), end_date=date(2024, 1, 1), today=False, alias_tag=None, save_fred=False, threads=False, extra_features_df=None):
 
     #Give cushion for inactive trading periods
     if today:
@@ -471,6 +471,13 @@ def build_full_features(tickers, start_date=date(2021, 1, 1), end_date=date(2024
     end_date_datetime = datetime.combine(end_date, datetime.min.time())
 
     features = features[features['Date'] >= start_date_datetime]
+
+    # ---- Optional Extra Feature Columns (e.g. geo features from geo_features.py) ----
+    if extra_features_df is not None:
+        extra = extra_features_df.copy()
+        if 'Date' in extra.columns:
+            extra['Date'] = pd.to_datetime(extra['Date'])
+        features = features.merge(extra, on='Date', how='left')
 
     # ---- Forward Return Target (1d) ----
     future_1d_return = features.groupby('ticker')['ret_1d'].shift(-1)
