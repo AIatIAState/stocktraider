@@ -282,6 +282,39 @@ def print_summary(all_weeks: list[dict], has_ragas: bool = False) -> None:
 
 
 # ---------------------------------------------------------------------------
+# GERS summary (reads ablation_results.csv if available)
+# ---------------------------------------------------------------------------
+def print_gers_summary(ablation_csv: str | None = None) -> None:
+    """Print GERS scores from ablation_results.csv if it exists."""
+    import importlib.util
+
+    if ablation_csv is None:
+        default_path = Path(__file__).resolve().parent.parent / "results" / "ablation_results.csv"
+        ablation_csv = str(default_path) if default_path.exists() else None
+
+    if ablation_csv is None or not Path(ablation_csv).exists():
+        return
+
+    if importlib.util.find_spec("pandas") is None:
+        return
+
+    try:
+        import pandas as pd
+        df = pd.read_csv(ablation_csv)
+        if "gers" not in df.columns or "baseline" not in df.columns:
+            return
+
+        print("\n" + "=" * 60)
+        print("  GERS (Geopolitical Event Response Score) by Baseline")
+        print("=" * 60)
+        summary = df.groupby(["baseline", "period"])["gers"].mean().unstack(fill_value=float("nan"))
+        print(summary.to_string())
+        print("=" * 60)
+    except Exception:
+        pass
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 def main() -> None:
@@ -323,6 +356,10 @@ def main() -> None:
     parser.add_argument(
         "--patch-weeks", nargs="+", metavar="DATE",
         help="Specific week end-dates to re-run (e.g. 2026-01-30 2026-01-23)",
+    )
+    parser.add_argument(
+        "--gers-results", metavar="FILE", default=None,
+        help="Path to ablation_results.csv; prints GERS summary alongside LLM metrics",
     )
     args = parser.parse_args()
 
@@ -513,6 +550,8 @@ def main() -> None:
     with open(args.output, "w", encoding="utf-8") as f:
         json.dump(report, f, indent=2, default=str)
     print(f"\nFull report saved to {args.output}")
+
+    print_gers_summary(args.gers_results)
 
 
 if __name__ == "__main__":
