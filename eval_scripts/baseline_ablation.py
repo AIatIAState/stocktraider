@@ -167,6 +167,37 @@ def _build_geo_features_df(tickers: list[str], start: date, end: date, baseline:
             current += timedelta(days=1)
         if rows:
             return pd.DataFrame(rows)
+
+    if baseline == "B2b":
+        try:
+            import requests as _req
+            from finbert_features import aggregate_daily_sentiment
+            newsapi_key = os.getenv("NEWSAPI_KEY") or os.getenv("NEWSAPI_API_KEY")
+            rows = []
+            current = start
+            while current <= end:
+                headlines: list[str] = []
+                if newsapi_key:
+                    try:
+                        resp = _req.get(
+                            "https://newsapi.org/v2/everything",
+                            params={"q": "stock market geopolitical", "from": current.isoformat(),
+                                    "to": current.isoformat(), "language": "en",
+                                    "sortBy": "relevancy", "pageSize": 5},
+                            headers={"X-Api-Key": newsapi_key},
+                            timeout=10,
+                        )
+                        articles = resp.json().get("articles", [])
+                        headlines = [a.get("title", "") for a in articles if a.get("title")]
+                    except Exception:
+                        pass
+                score = aggregate_daily_sentiment(headlines)
+                rows.append({"Date": pd.Timestamp(current), "finbert_sentiment": score})
+                current += timedelta(days=1)
+            if rows:
+                return pd.DataFrame(rows)
+        except ImportError:
+            print("  finbert_features not available - skipping B2b")
     return None
 
 
@@ -366,7 +397,7 @@ def plot_results(df: pd.DataFrame, output_dir: Path) -> None:
 def main():
     parser = argparse.ArgumentParser(description="XGBoost ablation study for geopolitical features")
     parser.add_argument("--tickers", nargs="+", default=DEFAULT_TICKERS)
-    parser.add_argument("--baselines", nargs="+", default=["B0", "B1", "B2", "B3"], choices=["B0", "B1", "B2", "B3"])
+    parser.add_argument("--baselines", nargs="+", default=["B0", "B1", "B2", "B3"], choices=["B0", "B1", "B2", "B3", "B2b"])
     parser.add_argument("--skip-llm", action="store_true", help="Skip B2 and B3 (no LLM calls)")
     parser.add_argument("--output", type=Path, default=RESULTS_DIR)
     args = parser.parse_args()
