@@ -31,6 +31,7 @@ from evaluate_weekly_insights import (
     _context_pct_changes,
     _context_symbols,
     _normalize_symbol,
+    geo_event_grounding,
     metric_hedge_language,
     metric_numerical_faithfulness,
     metric_output_completeness,
@@ -45,6 +46,7 @@ METRIC_KEYS = [
     "numerical_faithfulness",
     "hedge_language",
     "output_completeness",
+    "geo_grounding",
 ]
 
 RAGAS_KEYS = ["faithfulness", "answer_relevancy"]
@@ -110,6 +112,7 @@ def evaluate_one(base_url: str, end_date: str, num_tolerance: float,
 
     date_range = f"{insights.get('start', '?')} to {insights.get('end', '?')}"
 
+    source_headlines = [e.get("title", "") for e in events if e.get("title")]
     metrics = {
         "symbol_accuracy": metric_symbol_accuracy(output_text, ctx_symbols),
         "symbol_coverage": metric_symbol_coverage(output_text, ctx_symbols),
@@ -118,6 +121,7 @@ def evaluate_one(base_url: str, end_date: str, num_tolerance: float,
         ),
         "hedge_language": metric_hedge_language(event_impacts),
         "output_completeness": metric_output_completeness(market_insights, event_impacts),
+        "geo_grounding": geo_event_grounding(insights, source_headlines),
     }
 
     result = {
@@ -219,11 +223,11 @@ def print_summary(all_weeks: list[dict], has_ragas: bool = False) -> None:
     print("  Batch LLM Evaluation Summary")
     print("=" * 100)
 
-    header = f"  {'Week':<25} {'SymAcc':>7} {'SymCov':>7} {'NumFth':>7} {'Hedge':>7} {'Compl':>7}"
+    header = f"  {'Week':<25} {'SymAcc':>7} {'SymCov':>7} {'NumFth':>7} {'Hedge':>7} {'Compl':>7} {'GeoGr':>7}"
     if has_ragas:
         header += f" {'Faith':>7} {'Relev':>7}"
     print(header)
-    print("  " + "-" * (73 + (16 if has_ragas else 0)))
+    print("  " + "-" * (81 + (16 if has_ragas else 0)))
 
     for week in all_weeks:
         date_range = week["date_range"]
@@ -248,7 +252,7 @@ def print_summary(all_weeks: list[dict], has_ragas: bool = False) -> None:
         print(row)
 
     # Overall averages
-    print("  " + "-" * (73 + (16 if has_ragas else 0)))
+    print("  " + "-" * (81 + (16 if has_ragas else 0)))
     overall: dict[str, list[float]] = {k: [] for k in METRIC_KEYS + RAGAS_KEYS}
     for week in all_weeks:
         for key in METRIC_KEYS:

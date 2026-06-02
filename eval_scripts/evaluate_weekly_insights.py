@@ -41,6 +41,7 @@ import os
 import re
 import sys
 from datetime import datetime
+from functools import lru_cache
 from pathlib import Path
 from typing import Optional
 
@@ -208,6 +209,69 @@ def metric_output_completeness(
         "market_in_range_3_5": market_ok,
         "events_in_range_0_5": events_ok,
     }
+
+
+# ---------------------------------------------------------------------------
+# Geo event grounding (sentence-transformers, optional)
+# ---------------------------------------------------------------------------
+
+def _sbert_available() -> bool:
+    import importlib.util
+    return importlib.util.find_spec("sentence_transformers") is not None
+
+
+@lru_cache(maxsize=1)
+def _load_sbert():
+    from sentence_transformers import SentenceTransformer
+    return SentenceTransformer("all-MiniLM-L6-v2")
+
+
+def geo_event_grounding(
+    insights: dict,
+    source_headlines: list[str],
+    threshold: float = 0.75,
+) -> dict:
+    """Fraction of event_impacts bullets grounded in at least one source headline (cosine >= threshold)."""
+    event_impacts: list[str] = insights.get("event_impacts") or []
+    if not event_impacts:
+        return {"score": None, "note": "No event_impacts to evaluate"}
+    clean_headlines = [h for h in source_headlines if h]
+    if not clean_headlines:
+        return {"score": None, "note": "No source headlines provided"}
+    if not _sbert_available():
+        return {"score": None, "note": "sentence-transformers not installed"}
+
+    try:
+        import numpy as np
+        model = _load_sbert()
+        impact_embs = model.encode(event_impacts, normalize_embeddings=True)
+        headline_embs = model.encode(clean_headlines, normalize_embeddings=True)
+        sims = np.dot(impact_embs, headline_embs.T)  # (n_impacts, n_headlines)
+
+        details = []
+        grounded_count = 0
+        for i, bullet in enumerate(event_impacts):
+            max_sim = float(sims[i].max())
+            best_idx = int(sims[i].argmax())
+            is_grounded = max_sim >= threshold
+            if is_grounded:
+                grounded_count += 1
+            details.append({
+                "bullet": bullet,
+                "max_similarity": round(max_sim, 3),
+                "best_match": clean_headlines[best_idx][:120],
+                "grounded": is_grounded,
+            })
+
+        return {
+            "score": round(grounded_count / len(event_impacts), 3),
+            "grounded_count": grounded_count,
+            "total_bullets": len(event_impacts),
+            "threshold": threshold,
+            "details": details,
+        }
+    except Exception as exc:  # noqa: BLE001
+        return {"score": None, "note": f"sentence-transformers error: {exc}"}
 
 
 # ---------------------------------------------------------------------------
@@ -456,6 +520,18 @@ def print_report(report: dict) -> None:
     print(f"    Event impacts        : {oc['event_impacts_count']} bullets "
           f"({'OK' if oc['events_in_range_0_5'] else 'OUT OF RANGE'})")
 
+    geo = cm.get("geo_grounding")
+    if geo is not None:
+        print(f"  Geo Event Grounding     {_score_bar(geo.get('score'))}")
+        if geo.get("note"):
+            print(f"    Note                : {geo['note']}")
+        elif geo.get("details"):
+            ungrounded = [d for d in geo["details"] if not d.get("grounded")]
+            if ungrounded:
+                print("    Ungrounded bullets  :")
+                for d in ungrounded:
+                    print(f"      * {d['bullet'][:80]} (sim={d['max_similarity']:.3f})")
+
     ragas = report.get("ragas_metrics")
     if ragas:
         print()
@@ -565,6 +641,7 @@ def main() -> None:
     model = insights.get("model") or "unknown"
 
     # ── Custom metrics ───────────────────────────────────────────────────────
+    source_headlines = [e.get("title", "") for e in events if e.get("title")]
     custom_metrics = {
         "symbol_accuracy": metric_symbol_accuracy(output_text, ctx_symbols),
         "symbol_coverage": metric_symbol_coverage(output_text, ctx_symbols),
@@ -573,6 +650,7 @@ def main() -> None:
         ),
         "hedge_language": metric_hedge_language(event_impacts),
         "output_completeness": metric_output_completeness(market_insights, event_impacts),
+        "geo_grounding": geo_event_grounding(insights, source_headlines),
     }
 
     # ── Ragas metrics ────────────────────────────────────────────────────────

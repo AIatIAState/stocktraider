@@ -1,0 +1,5 @@
+5 LLM models tested for 10 weeks, 5 trials over each week.
+
+You can use this data to generate all the charts, graphs, and table you desire :)
+
+It takes a long time to run otherwise.
