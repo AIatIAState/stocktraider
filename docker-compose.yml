@@ -16,6 +16,6 @@ services:
       - SCHEDULED_UPDATE_ENABLED=true
       - SCHEDULED_UPDATE_TIMEZONE=America/Chicago
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - NEWSAPI_KEY=${NEWSAPI_KEY}
+      - NEWSDATA_API_KEY=${NEWSDATA_API_KEY}
     volumes:
       - ${DB_DIR:-./data}:/data # fall back to ./data path locally

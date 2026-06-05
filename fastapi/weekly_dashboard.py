@@ -37,11 +37,12 @@ INSIGHTS_CACHE: dict[str, object] = {
 
 CORE_SYMBOLS_DEFAULT = "NVDA,AAPL,MSFT,AMZN,GOOGL,META,TSLA,AMD,NFLX,JPM"
 BENCHMARK_SYMBOLS_DEFAULT = "SPY,QQQ,DIA,IWM"
-NEWSAPI_ENDPOINT = "https://newsapi.org/v2/everything"
-NEWSAPI_DEFAULT_QUERY = (
+NEWSDATA_ENDPOINT = "https://newsdata.io/api/1/latest"
+NEWSDATA_DEFAULT_QUERY = (
     "stock market OR stocks OR equities OR earnings OR inflation OR "
-    "Federal Reserve OR rates OR oil OR geopolitics"
+    "\"Federal Reserve\" OR rates OR oil OR geopolitics"
 )
+NEWSDATA_MAX_PAGE_SIZE = 10
 
 
 def _ensure_list(value) -> list[str]:
@@ -232,6 +233,47 @@ def _normalize_event(event: dict) -> dict:
     }
 
 
+def _fetch_newsdata(query: str, page_size: int) -> tuple[list[dict], str | None]:
+    api_key = os.getenv("NEWSDATA_API_KEY") or os.getenv("NEWSDATA_KEY")
+    if not api_key:
+        return [], "NEWSDATA_API_KEY is not configured."
+
+    params = {
+        "apikey": api_key,
+        "q": query,
+        "language": "en",
+        "size": max(1, min(page_size, NEWSDATA_MAX_PAGE_SIZE)),
+    }
+    try:
+        response = requests.get(NEWSDATA_ENDPOINT, params=params, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+    except requests.RequestException:
+        return [], "Failed to load NewsData.io events."
+    except json.JSONDecodeError:
+        return [], "NewsData.io did not return JSON."
+
+    results = data.get("results", []) if isinstance(data, dict) else []
+    events: list[dict] = []
+    for item in results:
+        if not isinstance(item, dict):
+            continue
+        title = str(item.get("title") or "").strip()
+        if not title:
+            continue
+        source = item.get("source_id") or item.get("source_name")
+        events.append(
+            {
+                "title": title,
+                "date": item.get("pubDate"),
+                "source": source,
+                "url": item.get("link"),
+                "image_url": item.get("image_url"),
+            }
+        )
+    return events, None
+
+
 def _load_events(start_date, end_date) -> tuple[list[dict], str | None, list[str]]:
     raw_json = os.getenv("MARKET_EVENTS_JSON")
     if raw_json:
@@ -255,51 +297,14 @@ def _load_events(start_date, end_date) -> tuple[list[dict], str | None, list[str
         except json.JSONDecodeError:
             return [], "MARKET_EVENTS_JSON is not valid JSON.", []
 
-    newsapi_key = os.getenv("NEWSAPI_KEY") or os.getenv("NEWSAPI_API_KEY")
-    if newsapi_key:
-        query = os.getenv("NEWSAPI_QUERY", NEWSAPI_DEFAULT_QUERY)
+    if os.getenv("NEWSDATA_API_KEY") or os.getenv("NEWSDATA_KEY"):
+        query = os.getenv("NEWSDATA_QUERY", NEWSDATA_DEFAULT_QUERY)
         try:
-            page_size = int(os.getenv("NEWSAPI_PAGE_SIZE", "12"))
+            page_size = int(os.getenv("NEWSDATA_PAGE_SIZE", "10"))
         except ValueError:
-            page_size = 12
-        params = {
-            "q": query,
-            "from": start_date.isoformat(),
-            "to": end_date.isoformat(),
-            "language": "en",
-            "sortBy": "relevancy",
-            "pageSize": max(1, min(page_size, 50)),
-        }
-        try:
-            response = requests.get(
-                NEWSAPI_ENDPOINT,
-                params=params,
-                headers={"X-Api-Key": newsapi_key},
-                timeout=10,
-            )
-            response.raise_for_status()
-            data = response.json()
-        except requests.RequestException:
-            return [], "Failed to load NewsAPI events.", ["newsapi.org"]
-        except json.JSONDecodeError:
-            return [], "NewsAPI did not return JSON.", ["newsapi.org"]
-
-        articles = data.get("articles", []) if isinstance(data, dict) else []
-        events = []
-        for article in articles:
-            if not isinstance(article, dict):
-                continue
-            events.append(
-                {
-                    "title": str(article.get("title") or "").strip(),
-                    "date": article.get("publishedAt"),
-                    "source": (article.get("source") or {}).get("name"),
-                    "url": article.get("url"),
-                    "image_url": article.get("urlToImage"),
-                }
-            )
-        events = [event for event in events if event["title"]]
-        return events, None, ["newsapi.org"]
+            page_size = 10
+        events, error = _fetch_newsdata(query, page_size)
+        return events, error, ["newsdata.io"]
 
     url = os.getenv("MARKET_EVENTS_URL")
     if not url:
@@ -939,31 +944,17 @@ def build_ticker_signal(symbol: str) -> dict:
     except Exception as exc:
         LOGGER.warning("Market news load failed: %s", exc)
 
-    newsapi_key = os.getenv("NEWSAPI_KEY") or os.getenv("NEWSAPI_API_KEY")
-    if newsapi_key:
+    if os.getenv("NEWSDATA_API_KEY") or os.getenv("NEWSDATA_KEY"):
         try:
-            response = requests.get(
-                NEWSAPI_ENDPOINT,
-                params={
-                    "q": f"{symbol} stock",
-                    "from": week_ago.isoformat(),
-                    "to": today.isoformat(),
-                    "language": "en",
-                    "sortBy": "relevancy",
-                    "pageSize": 5,
-                },
-                headers={"X-Api-Key": newsapi_key},
-                timeout=10,
-            )
-            response.raise_for_status()
-            articles = response.json().get("articles", [])
+            articles, fetch_error = _fetch_newsdata(f"{symbol} stock", 5)
+            if fetch_error:
+                LOGGER.warning("Symbol news fetch failed for %s: %s", symbol, fetch_error)
             for article in articles:
-                if isinstance(article, dict) and article.get("title"):
-                    symbol_news.append({
-                        "title": str(article["title"]).strip(),
-                        "date": article.get("publishedAt"),
-                        "source": (article.get("source") or {}).get("name"),
-                    })
+                symbol_news.append({
+                    "title": article["title"],
+                    "date": article.get("date"),
+                    "source": article.get("source"),
+                })
         except Exception as exc:
             LOGGER.warning("Symbol news fetch failed for %s: %s", symbol, exc)
 
