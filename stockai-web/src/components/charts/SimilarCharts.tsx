@@ -1,6 +1,6 @@
 import {
     Accordion, AccordionDetails,
-    AccordionSummary, Button, Card, CardContent,
+    AccordionSummary, Alert, Button, Card, CardContent,
     Container,
     Paper,
     Table, TableBody,
@@ -38,33 +38,31 @@ function getStartDate(bars: Bar[], trendLength: number){
     startTrendDate.setDate(endTrendDate.getDate() - trendLength)
     return startTrendDate
 }
-async function getPatterns(symbol:string, trendLength: number, setLoading: (data: boolean) => void) {
-    setLoading(true)
-    const response = await fetchStockPatterns(symbol, "daily", trendLength)
-    const patterns: StockPattern[] = response['results']
-    const recentPatterns: StockPattern[] = []
-    patterns.forEach((pattern) => {
-        const tenYearsAgo = new Date()
-        tenYearsAgo.setDate(tenYearsAgo.getDate() - 365 * 10)
-        if(getDateFromYYYYMMDD(pattern.starting_date.toString()) >= tenYearsAgo){
-            recentPatterns.push(pattern)
-        }
-    })
-    setLoading(false)
-    return recentPatterns
-}
 
 function SimilarCharts(props: SimilarChartsProps){
     const [ patterns, setPatterns ] = useState<StockPattern[]>(null as unknown as StockPattern[])
     const [ loading, setLoading ] = useState(false)
     const [ patternPageIndex, setPatternPageIndex ] = useState(0)
+    const [ error, setError ] = useState<string | null>(null)
     const patternsPerPage = 10
     const trendLength = 7
     useEffect(() => {
         if(props.symbol === ""){
             return
         }
-        getPatterns(props.symbol, trendLength, setLoading).then((response) => setPatterns(response))
+        setError(null)
+        setLoading(true)
+        fetchStockPatterns(props.symbol, "daily", trendLength)
+            .then((response) => {
+                const all: StockPattern[] = response['results'] ?? []
+                const tenYearsAgo = new Date()
+                tenYearsAgo.setDate(tenYearsAgo.getDate() - 365 * 10)
+                setPatterns(all.filter(p =>
+                    getDateFromYYYYMMDD(p.starting_date.toString()) >= tenYearsAgo
+                ))
+            })
+            .catch((err: Error) => setError(err.message))
+            .finally(() => setLoading(false))
     }, [props.symbol])
     if(props.symbol=== ""){
         return <></>
@@ -82,6 +80,18 @@ function SimilarCharts(props: SimilarChartsProps){
                     <Stack direction="row" alignItems="center" spacing={2}>
                         <Typography variant="h4">Historical Trend Analysis</Typography>
                         <GradientCircularProgress />
+                    </Stack>
+                </CardContent>
+            </Card>
+        );
+    }
+    if (error) {
+        return (
+            <Card sx={{ borderRadius: 3 }}>
+                <CardContent>
+                    <Stack direction="row" alignItems="center" spacing={2}>
+                        <Typography variant="h4">Historical Trend Analysis</Typography>
+                        <Alert severity="error">Failed to load patterns: {error}</Alert>
                     </Stack>
                 </CardContent>
             </Card>

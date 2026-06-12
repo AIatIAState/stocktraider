@@ -66,11 +66,19 @@ export default function StockSearch(props: StockSearchProps) {
         setSearchValue("")
         props.setBars([])
         props.setSymbol("")
-        const response = await fetchStockHistory(symbol, "daily")
-        props.setBars(response.results)
-        props.setSymbol(response.results[0].symbol)
-        setLoading(false)
-
+        try {
+            const response = await fetchStockHistory(symbol, "daily")
+            if (!response.results || response.results.length === 0) {
+                console.error(`No bars returned for symbol: ${symbol}`)
+                return
+            }
+            props.setBars(response.results)
+            props.setSymbol(response.results[0].symbol)
+        } catch (err) {
+            console.error("Failed to load symbol data:", err)
+        } finally {
+            setLoading(false)
+        }
     }
 
 
