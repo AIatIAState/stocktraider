@@ -248,8 +248,18 @@ def _fetch_newsdata(query: str, page_size: int) -> tuple[list[dict], str | None]
         response = requests.get(NEWSDATA_ENDPOINT, params=params, timeout=10)
         response.raise_for_status()
         data = response.json()
-    except requests.RequestException:
-        return [], "Failed to load NewsData.io events."
+    except requests.exceptions.HTTPError as exc:
+        status = exc.response.status_code if exc.response is not None else "?"
+        body = ""
+        try:
+            body = exc.response.json().get("results", {}).get("message") or exc.response.text[:120]
+        except Exception:
+            pass
+        LOGGER.error("NewsData.io HTTP %s: %s", status, body)
+        return [], f"NewsData.io returned HTTP {status}: {body}"
+    except requests.RequestException as exc:
+        LOGGER.error("NewsData.io request failed: %s", exc)
+        return [], f"Failed to load NewsData.io events: {exc}"
     except json.JSONDecodeError:
         return [], "NewsData.io did not return JSON."
 
