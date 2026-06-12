@@ -38,10 +38,7 @@ INSIGHTS_CACHE: dict[str, object] = {
 CORE_SYMBOLS_DEFAULT = "NVDA,AAPL,MSFT,AMZN,GOOGL,META,TSLA,AMD,NFLX,JPM"
 BENCHMARK_SYMBOLS_DEFAULT = "SPY,QQQ,DIA,IWM"
 NEWSDATA_ENDPOINT = "https://newsdata.io/api/1/latest"
-NEWSDATA_DEFAULT_QUERY = (
-    "stock market OR stocks OR equities OR earnings OR inflation OR "
-    "\"Federal Reserve\" OR rates OR oil OR geopolitics"
-)
+NEWSDATA_DEFAULT_QUERY = "stocks OR earnings OR inflation OR Federal Reserve OR oil OR geopolitics"
 NEWSDATA_MAX_PAGE_SIZE = 10
 
 
