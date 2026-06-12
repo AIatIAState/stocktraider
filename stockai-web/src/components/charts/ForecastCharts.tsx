@@ -4,6 +4,7 @@ import {
   Accordion,
   AccordionDetails,
   AccordionSummary,
+  Alert,
   Card,
   CardContent,
   Typography,
@@ -19,28 +20,20 @@ interface ForecastChartsProps {
   symbol: string;
 }
 
-async function getForecasts(
-  symbol: string,
-  forecastLength: number,
-  setLoading: (data: boolean) => void,
-) {
-  setLoading(true);
-  const response = await fetchStockForecasts(symbol, "daily", forecastLength);
-  const forecasts: StockForecast[] = response["results"];
-  setLoading(false);
-  return forecasts;
-}
-
 export function ForecastCharts(props: ForecastChartsProps) {
   const [loading, setLoading] = useState(false);
   const [forecasts, setForecasts] = useState<StockForecast[]>([]);
+  const [error, setError] = useState<string | null>(null);
   const forecastLength = 10;
 
   useEffect(() => {
     if (props.symbol === "") return;
-    getForecasts(props.symbol, forecastLength, setLoading).then((response) =>
-      setForecasts(response),
-    );
+    setLoading(true);
+    setError(null);
+    fetchStockForecasts(props.symbol, "daily", forecastLength)
+      .then((response) => setForecasts(response["results"] ?? []))
+      .catch((err: Error) => setError(err.message))
+      .finally(() => setLoading(false));
   }, [props.symbol]);
 
   if (props.symbol === "") return <></>;
@@ -52,6 +45,19 @@ export function ForecastCharts(props: ForecastChartsProps) {
           <Stack direction="row" alignItems="center" spacing={2}>
             <Typography variant="h4">Stock Price Forecasting</Typography>
             <GradientCircularProgress />
+          </Stack>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card sx={{ borderRadius: 3 }}>
+        <CardContent>
+          <Stack direction="row" alignItems="center" spacing={2}>
+            <Typography variant="h4">Stock Price Forecasting</Typography>
+            <Alert severity="error">Failed to load forecasts: {error}</Alert>
           </Stack>
         </CardContent>
       </Card>
