@@ -182,7 +182,9 @@ def _diebold_mariano(e1: np.ndarray, e2: np.ndarray) -> float:
 def _build_geo_features_df(tickers: list[str], start: date, end: date, baseline: str, geo_extractor=None) -> pd.DataFrame | None:
     if baseline == "B1":
         if not GPR_CSV_PATH.exists():
-            return None
+            LOGGER.warning("GPR file not found; using zeros for gpr_index in B1")
+            date_range = pd.date_range(start, end, freq="D")
+            return pd.DataFrame({"Date": date_range, "gpr_index": 0.0})
         gpr = pd.read_csv(GPR_CSV_PATH, index_col=0, parse_dates=True)["gpr_index"]
         date_range = pd.date_range(start, end, freq="D")
         gpr_daily = gpr.reindex(date_range).interpolate("linear")
@@ -408,6 +410,7 @@ def run_ablation(
                         y_true_all.extend(test_labels.values[:len(y_pred)])
                         y_pred_all.extend(y_pred)
                     except Exception as exc:
+                        LOGGER.debug("  window wi=%d skipped: %s", wi, exc)
                         continue
 
                 if len(y_true_all) == 0:
