@@ -12,7 +12,6 @@ LOGGER = logging.getLogger("uvicorn.error")
 GEO_CACHE_TTL_SECONDS = int(os.getenv("GEO_FEATURES_CACHE_SECONDS", "86400"))
 OPENAI_MIN_INTERVAL_SECONDS = int(os.getenv("OPENAI_MIN_INTERVAL_SECONDS", "60"))
 
-NEWSDATA_ENDPOINT = "https://newsdata.io/api/1/archive"
 OPENAI_ENDPOINT = "https://api.openai.com/v1/chat/completions"
 
 _DEFAULT_CACHE_PATH = (
@@ -55,6 +54,14 @@ _RATE_LIMIT_STATE: dict = {
 }
 _DISK_LOAD_DONE = False
 
+# Headline cache: populated once from prefetch_headlines.py output
+_DEFAULT_HEADLINES_PATH = (
+    Path(__file__).resolve().parents[1] / "results" / "headlines_cache.jsonl"
+)
+HEADLINES_CACHE_PATH = Path(os.getenv("HEADLINES_CACHE_PATH", str(_DEFAULT_HEADLINES_PATH)))
+_HEADLINES: dict[str, list[str]] = {}  # {date_str: [titles]}
+_HEADLINES_LOADED = False
+
 
 def _load_disk_cache() -> None:
     """Populate `_CACHE` from the JSONL file on first use. Idempotent."""
@@ -94,6 +101,42 @@ def _persist_to_disk(date_str: str, payload: dict) -> None:
         LOGGER.warning("geo_features: could not write disk cache: %s", exc)
 
 
+def _load_headlines_cache() -> None:
+    """Populate `_HEADLINES` from prefetch_headlines.py JSONL output. Idempotent."""
+    global _HEADLINES_LOADED
+    if _HEADLINES_LOADED:
+        return
+    _HEADLINES_LOADED = True
+    if not HEADLINES_CACHE_PATH.exists():
+        return
+    try:
+        with HEADLINES_CACHE_PATH.open("r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    row = json.loads(line)
+                    ds = row.get("date")
+                    titles = row.get("titles", [])
+                    if ds and isinstance(titles, list):
+                        _HEADLINES[ds] = titles
+                except (json.JSONDecodeError, TypeError):
+                    continue
+        LOGGER.info("geo_features: loaded headlines for %d dates from %s",
+                    len(_HEADLINES), HEADLINES_CACHE_PATH)
+    except OSError as exc:
+        LOGGER.warning("geo_features: could not read headlines cache %s: %s",
+                       HEADLINES_CACHE_PATH, exc)
+
+
+def fetch_headlines_for_date(date_str: str) -> list[str]:
+    """Return pre-cached headlines for date_str (populated by prefetch_headlines.py)."""
+    with _CACHE_LOCK:
+        _load_headlines_cache()
+    return list(_HEADLINES.get(date_str, []))
+
+
 def _clamp(value: float, lo: float, hi: float) -> float:
     return max(lo, min(hi, value))
 
@@ -115,14 +158,14 @@ def _parse_json_blob(text: str) -> dict | None:
 class GeoFeatureExtractor:
     """Converts geopolitical news headlines into numeric ML features.
 
-    Fetches top-5 headlines via NewsAPI, calls GPT-4o-mini for structured
-    JSON extraction, and caches the result for 24 hours (matching the
-    INSIGHTS_CACHE_TTL_SECONDS pattern in weekly_dashboard.py).
+    Reads pre-cached headlines from prefetch_headlines.py output, calls
+    GPT-4o-mini for structured JSON extraction, and caches the result for
+    24 hours (matching the INSIGHTS_CACHE_TTL_SECONDS pattern in
+    weekly_dashboard.py).
     """
 
     def __init__(self) -> None:
         self._openai_key = os.getenv("OPENAI_API_KEY")
-        self._newsdata_key = os.getenv("NEWSDATA_API_KEY") or os.getenv("NEWSDATA_KEY")
 
     def get_geo_features(self, ticker: str, date_str: str) -> dict:
         """Return geo feature dict for (ticker, date_str).
@@ -162,30 +205,7 @@ class GeoFeatureExtractor:
         return self._parse_llm_result(llm_result)
 
     def _fetch_headlines(self, ticker: str, date_str: str) -> list[str]:
-        if not self._newsdata_key:
-            return []
-        query = (
-            "geopolitical OR tariff OR sanctions OR conflict OR election OR policy "
-            "stock market"
-        )
-        try:
-            resp = requests.get(
-                NEWSDATA_ENDPOINT,
-                params={
-                    "q": query,
-                    "from_date": date_str,
-                    "to_date": date_str,
-                    "language": "en",
-                    "apikey": self._newsdata_key,
-                },
-                timeout=10,
-            )
-            resp.raise_for_status()
-            articles = resp.json().get("results", [])
-            return [a.get("title", "") for a in articles if a.get("title")]
-        except Exception as exc:
-            LOGGER.warning("geo_features: NewsData.io fetch failed: %s", exc)
-            return []
+        return fetch_headlines_for_date(date_str)
 
     def _call_openai(self, headlines: list[str]) -> dict | None:
         if not self._openai_key:

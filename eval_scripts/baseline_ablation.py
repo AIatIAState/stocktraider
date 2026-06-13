@@ -26,6 +26,9 @@ import warnings
 from datetime import date, timedelta
 from pathlib import Path
 
+# Lower the OpenAI rate gate for the backtest (live app keeps its 60s default)
+os.environ.setdefault("OPENAI_MIN_INTERVAL_SECONDS", "1")
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "fastapi"))
 
 import matplotlib
@@ -211,28 +214,12 @@ def _build_geo_features_df(tickers: list[str], start: date, end: date, baseline:
 
     if baseline == "B2b":
         try:
-            import requests as _req
             from finbert_features import aggregate_daily_sentiment
-            newsdata_key = os.getenv("NEWSDATA_API_KEY") or os.getenv("NEWSDATA_KEY")
+            from geo_features import fetch_headlines_for_date
             rows = []
             current = start
             while current <= end:
-                headlines: list[str] = []
-                if newsdata_key:
-                    try:
-                        resp = _req.get(
-                            "https://newsdata.io/api/1/archive",
-                            params={"q": "stock market geopolitical",
-                                    "from_date": current.isoformat(),
-                                    "to_date": current.isoformat(),
-                                    "language": "en",
-                                    "apikey": newsdata_key},
-                            timeout=10,
-                        )
-                        articles = resp.json().get("results", [])
-                        headlines = [a.get("title", "") for a in articles if a.get("title")]
-                    except Exception:
-                        pass
+                headlines = fetch_headlines_for_date(current.isoformat())
                 score = aggregate_daily_sentiment(headlines)
                 rows.append({"Date": pd.Timestamp(current), "finbert_sentiment": score})
                 current += timedelta(days=1)
