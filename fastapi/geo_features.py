@@ -12,7 +12,7 @@ LOGGER = logging.getLogger("uvicorn.error")
 GEO_CACHE_TTL_SECONDS = int(os.getenv("GEO_FEATURES_CACHE_SECONDS", "86400"))
 OPENAI_MIN_INTERVAL_SECONDS = int(os.getenv("OPENAI_MIN_INTERVAL_SECONDS", "60"))
 
-NEWSAPI_ENDPOINT = "https://newsapi.org/v2/everything"
+NEWSDATA_ENDPOINT = "https://newsdata.io/api/1/archive"
 OPENAI_ENDPOINT = "https://api.openai.com/v1/chat/completions"
 
 _DEFAULT_CACHE_PATH = (
@@ -122,7 +122,7 @@ class GeoFeatureExtractor:
 
     def __init__(self) -> None:
         self._openai_key = os.getenv("OPENAI_API_KEY")
-        self._newsapi_key = os.getenv("NEWSAPI_KEY") or os.getenv("NEWSAPI_API_KEY")
+        self._newsdata_key = os.getenv("NEWSDATA_API_KEY") or os.getenv("NEWSDATA_KEY")
 
     def get_geo_features(self, ticker: str, date_str: str) -> dict:
         """Return geo feature dict for (ticker, date_str).
@@ -162,7 +162,7 @@ class GeoFeatureExtractor:
         return self._parse_llm_result(llm_result)
 
     def _fetch_headlines(self, ticker: str, date_str: str) -> list[str]:
-        if not self._newsapi_key:
+        if not self._newsdata_key:
             return []
         query = (
             "geopolitical OR tariff OR sanctions OR conflict OR election OR policy "
@@ -170,23 +170,21 @@ class GeoFeatureExtractor:
         )
         try:
             resp = requests.get(
-                NEWSAPI_ENDPOINT,
+                NEWSDATA_ENDPOINT,
                 params={
                     "q": query,
-                    "from": date_str,
-                    "to": date_str,
+                    "from_date": date_str,
+                    "to_date": date_str,
                     "language": "en",
-                    "sortBy": "relevancy",
-                    "pageSize": 5,
+                    "apikey": self._newsdata_key,
                 },
-                headers={"X-Api-Key": self._newsapi_key},
                 timeout=10,
             )
             resp.raise_for_status()
-            articles = resp.json().get("articles", [])
+            articles = resp.json().get("results", [])
             return [a.get("title", "") for a in articles if a.get("title")]
         except Exception as exc:
-            LOGGER.warning("geo_features: NewsAPI fetch failed: %s", exc)
+            LOGGER.warning("geo_features: NewsData.io fetch failed: %s", exc)
             return []
 
     def _call_openai(self, headlines: list[str]) -> dict | None:
