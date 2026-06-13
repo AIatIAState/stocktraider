@@ -81,9 +81,11 @@ def _with_retry(fn, *args, retries: int = 3, base: float = 2.0, label: str = "ca
     raise last_exc
 
 DEFAULT_TICKERS = ["SPY", "QQQ", "LMT", "XOM", "TSM", "BA", "CVX"]
+# Recent dense-coverage windows (Alpha Vantage free news thickens from Oct 2025 on;
+# pre-Oct 2025 months returned only 6-14 articles, Oct 2025 onward 30-127/month).
 PERIODS = {
-    "2022": (date(2022, 1, 1), date(2022, 12, 31)),
-    "Q1_2025": (date(2025, 1, 1), date(2025, 3, 31)),
+    "2025_Q4": (date(2025, 10, 1), date(2025, 12, 31)),
+    "2026_Q1": (date(2026, 1, 1), date(2026, 3, 31)),
 }
 TRAIN_WINDOW = 252
 DEFAULT_HORIZON = 5
