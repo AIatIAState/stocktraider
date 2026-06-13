@@ -18,8 +18,10 @@ NEWSAPI_KEY for B2/B3.
 """
 
 import argparse
+import logging
 import os
 import sys
+import time
 import warnings
 from datetime import date, timedelta
 from pathlib import Path
@@ -37,6 +39,43 @@ from xg_boost_investor.XGBoostInvestor import XGBoostInvestor
 from xg_boost_investor.Features import build_full_features
 
 warnings.filterwarnings("ignore")
+LOGGER = logging.getLogger("ablation")
+
+
+def _setup_logging(log_dir: Path) -> Path:
+    """Configure root logger to write timestamped lines to both stdout and a file."""
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_file = log_dir / f"ablation_{date.today():%Y-%m-%d}.log"
+    root = logging.getLogger()
+    root.setLevel(logging.INFO)
+    for h in list(root.handlers):
+        root.removeHandler(h)
+    fmt = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
+    fh = logging.FileHandler(log_file)
+    fh.setFormatter(fmt)
+    sh = logging.StreamHandler(sys.stdout)
+    sh.setFormatter(fmt)
+    root.addHandler(fh)
+    root.addHandler(sh)
+    return log_file
+
+
+def _with_retry(fn, *args, retries: int = 3, base: float = 2.0, label: str = "call", **kwargs):
+    """Run `fn` with exponential backoff retry on exception."""
+    last_exc = None
+    for attempt in range(retries + 1):
+        try:
+            return fn(*args, **kwargs)
+        except Exception as exc:
+            last_exc = exc
+            if attempt < retries:
+                wait = base * (2 ** attempt)
+                LOGGER.warning("%s failed (attempt %d/%d): %s — retrying in %.1fs",
+                               label, attempt + 1, retries + 1, exc, wait)
+                time.sleep(wait)
+            else:
+                LOGGER.error("%s failed after %d retries: %s", label, retries + 1, exc)
+    raise last_exc
 
 DEFAULT_TICKERS = ["SPY", "QQQ", "LMT", "XOM", "TSM", "BA", "CVX"]
 PERIODS = {
@@ -201,10 +240,38 @@ def _build_geo_features_df(tickers: list[str], start: date, end: date, baseline:
     return None
 
 
+def _csv_row(record: dict) -> dict:
+    """Strip in-memory-only columns (those prefixed with '_') from a record."""
+    return {k: v for k, v in record.items() if not k.startswith("_")}
+
+
+def _append_record(record: dict, csv_path: Path) -> None:
+    """Append one row to the CSV checkpoint file, writing header if new."""
+    csv_path.parent.mkdir(parents=True, exist_ok=True)
+    df = pd.DataFrame([_csv_row(record)])
+    write_header = not csv_path.exists() or csv_path.stat().st_size == 0
+    df.to_csv(csv_path, mode="a", header=write_header, index=False)
+
+
+def _load_completed(csv_path: Path) -> set[tuple[str, str, str]]:
+    """Return set of (period, ticker, baseline) triples already in the checkpoint."""
+    if not csv_path.exists() or csv_path.stat().st_size == 0:
+        return set()
+    try:
+        df = pd.read_csv(csv_path)
+    except (pd.errors.EmptyDataError, pd.errors.ParserError):
+        return set()
+    if df.empty or not {"period", "ticker", "baseline"}.issubset(df.columns):
+        return set()
+    return set(zip(df["period"].astype(str), df["ticker"].astype(str), df["baseline"].astype(str)))
+
+
 def run_ablation(
     tickers: list[str],
     baselines: list[str],
     skip_llm: bool = False,
+    csv_path: Path | None = None,
+    max_failures: int = 20,
 ) -> pd.DataFrame:
     gpr_series = download_gpr_data()
 
@@ -214,27 +281,49 @@ def run_ablation(
             from geo_features import GeoFeatureExtractor
             geo_extractor = GeoFeatureExtractor()
         except ImportError:
-            print("  geo_features.py not found - skipping B2/B3")
+            LOGGER.warning("geo_features.py not found - skipping B2/B3")
             baselines = [b for b in baselines if b not in ("B2", "B3")]
 
-    records = []
+    if csv_path is None:
+        csv_path = RESULTS_DIR / "ablation_results.csv"
+    completed = _load_completed(csv_path)
+    if completed:
+        LOGGER.info("Resuming from %d completed rows in %s", len(completed), csv_path)
+
+    total = len(PERIODS) * len(tickers) * len(baselines)
+    iteration = 0
+    consecutive_failures = 0
+    run_start = time.time()
+    records: list[dict] = []  # in-memory only, used for Diebold-Mariano vs B0 in same run
     step = max(1, DEFAULT_HORIZON // 2)
 
     for period_name, (period_start, period_end) in PERIODS.items():
-        print(f"\n== Period: {period_name} ({period_start} - {period_end}) ==")
+        LOGGER.info("== Period: %s (%s - %s) ==", period_name, period_start, period_end)
 
         for ticker in tickers:
-            print(f"  Ticker: {ticker}")
+            # Skip the expensive feature build if every baseline for this ticker is done
+            if all((period_name, ticker, b) in completed for b in baselines):
+                LOGGER.info("  %s/%s: all baselines complete, skipping feature build",
+                            period_name, ticker)
+                iteration += len(baselines)
+                continue
+
+            LOGGER.info("  Ticker: %s", ticker)
 
             train_start = period_start - timedelta(days=TRAIN_WINDOW + 60)
             try:
-                full_features, full_labels = build_full_features(
-                    [ticker],
-                    start_date=train_start,
-                    end_date=period_end,
+                full_features, full_labels = _with_retry(
+                    build_full_features, [ticker],
+                    start_date=train_start, end_date=period_end,
+                    retries=3, base=5.0, label=f"build_full_features({ticker})",
                 )
             except Exception as exc:
-                print(f"    Feature build failed for {ticker}: {exc}")
+                LOGGER.error("Feature build failed for %s after retries: %s", ticker, exc)
+                consecutive_failures += 1
+                if consecutive_failures >= max_failures:
+                    LOGGER.error("Hit --max-failures=%d limit, aborting", max_failures)
+                    break
+                iteration += len(baselines)
                 continue
 
             full_features["Date"] = pd.to_datetime(full_features["Date"])
@@ -246,11 +335,20 @@ def run_ablation(
             eval_indices = full_features.index[period_mask].tolist()
 
             if len(eval_indices) < step * 5:
-                print(f"    Not enough eval data for {ticker} in {period_name}")
+                LOGGER.warning("Not enough eval data for %s in %s", ticker, period_name)
+                iteration += len(baselines)
                 continue
 
             for baseline in baselines:
-                print(f"    Baseline: {baseline}")
+                iteration += 1
+                if (period_name, ticker, baseline) in completed:
+                    LOGGER.info("  [%d/%d] period=%s ticker=%s baseline=%s — already complete, skipping",
+                                iteration, total, period_name, ticker, baseline)
+                    continue
+
+                elapsed = time.time() - run_start
+                LOGGER.info("  [%d/%d] period=%s ticker=%s baseline=%s elapsed=%.0fs",
+                            iteration, total, period_name, ticker, baseline, elapsed)
 
                 geo_df = None
                 if baseline != "B0":
@@ -258,7 +356,7 @@ def run_ablation(
                         [ticker], period_start, period_end, baseline, geo_extractor
                     )
                     if geo_df is None and baseline in ("B1", "B2", "B3"):
-                        print(f"    No geo data for {baseline}, skipping")
+                        LOGGER.warning("    No geo data for %s, skipping", baseline)
                         continue
 
                 y_true_all = []
@@ -353,10 +451,20 @@ def run_ablation(
                     "_y_pred": y_pred_arr.tolist(),
                 }
                 records.append(record)
-                print(f"      DA={metrics['DA']:.4f} MAE={metrics['MAE']:.6f} n={metrics.get('n_samples', len(y_true_arr))}")
+                _append_record(record, csv_path)
+                completed.add((period_name, ticker, baseline))
+                consecutive_failures = 0
+                LOGGER.info("      DA=%.4f MAE=%.6f n=%d", metrics["DA"], metrics["MAE"], len(y_true_arr))
 
-    df = pd.DataFrame(records).drop(columns=["_y_pred"], errors="ignore")
-    return df
+            if consecutive_failures >= max_failures:
+                break
+        if consecutive_failures >= max_failures:
+            break
+
+    # Return cumulative CSV contents (so plotting in main() uses both resumed and new rows)
+    if csv_path.exists() and csv_path.stat().st_size > 0:
+        return pd.read_csv(csv_path)
+    return pd.DataFrame()
 
 
 def plot_results(df: pd.DataFrame, output_dir: Path) -> None:
@@ -400,29 +508,39 @@ def main():
     parser.add_argument("--baselines", nargs="+", default=["B0", "B1", "B2", "B3"], choices=["B0", "B1", "B2", "B3", "B2b"])
     parser.add_argument("--skip-llm", action="store_true", help="Skip B2 and B3 (no LLM calls)")
     parser.add_argument("--output", type=Path, default=RESULTS_DIR)
+    parser.add_argument("--max-failures", type=int, default=20,
+                        help="Abort after N consecutive iteration-level failures")
+    parser.add_argument("--reset", action="store_true",
+                        help="Delete the existing ablation_results.csv and start fresh")
     args = parser.parse_args()
 
-    print(f"Tickers: {args.tickers}")
-    print(f"Baselines: {args.baselines}")
-    print(f"Periods: {list(PERIODS.keys())}")
+    log_file = _setup_logging(args.output)
+    LOGGER.info("Tickers: %s", args.tickers)
+    LOGGER.info("Baselines: %s", args.baselines)
+    LOGGER.info("Periods: %s", list(PERIODS.keys()))
+    LOGGER.info("Log file: %s", log_file)
+
+    csv_path = args.output / "ablation_results.csv"
+    if args.reset and csv_path.exists():
+        LOGGER.info("--reset: removing existing %s", csv_path)
+        csv_path.unlink()
 
     df = run_ablation(
         tickers=args.tickers,
         baselines=args.baselines,
         skip_llm=args.skip_llm,
+        csv_path=csv_path,
+        max_failures=args.max_failures,
     )
 
     if df.empty:
-        print("No results generated.")
+        LOGGER.warning("No results generated.")
         return
 
-    args.output.mkdir(parents=True, exist_ok=True)
-    csv_path = args.output / "ablation_results.csv"
-    df.to_csv(csv_path, index=False)
-    print(f"\nSaved: {csv_path}")
-    print("\nSummary (mean across tickers):")
+    LOGGER.info("Saved: %s", csv_path)
+    LOGGER.info("Summary (mean across tickers):")
     summary = df.groupby(["baseline", "period"])[["DA", "MAE", "RMSE", "MAPE", "gers"]].mean()
-    print(summary.to_string())
+    LOGGER.info("\n%s", summary.to_string())
 
     plot_results(df, args.output)
 

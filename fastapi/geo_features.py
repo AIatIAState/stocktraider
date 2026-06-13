@@ -3,6 +3,7 @@ import logging
 import os
 import threading
 import time
+from pathlib import Path
 
 import requests
 
@@ -13,6 +14,11 @@ OPENAI_MIN_INTERVAL_SECONDS = int(os.getenv("OPENAI_MIN_INTERVAL_SECONDS", "60")
 
 NEWSAPI_ENDPOINT = "https://newsapi.org/v2/everything"
 OPENAI_ENDPOINT = "https://api.openai.com/v1/chat/completions"
+
+_DEFAULT_CACHE_PATH = (
+    Path(__file__).resolve().parents[1] / "results" / "geo_features_cache.jsonl"
+)
+GEO_CACHE_PATH = Path(os.getenv("GEO_CACHE_PATH", str(_DEFAULT_CACHE_PATH)))
 
 ACTOR_ENCODING = {"none": 0, "us": 1, "china": 2, "russia": 3, "other": 4}
 EVENT_TYPE_ENCODING = {
@@ -40,13 +46,52 @@ ZERO_GEO_FEATURES: dict = {
 GEO_FEATURE_NAMES = list(ZERO_GEO_FEATURES.keys())
 
 _CACHE_LOCK = threading.Lock()
-_CACHE: dict = {
-    "timestamp": 0.0,
-    "date_key": None,
-    "payload": None,
+# Multi-date in-memory cache: {date_str: {"payload": dict, "ts": float}}
+# (Replaces the single-slot cache that overwrote on every new date.)
+_CACHE: dict[str, dict] = {}
+_RATE_LIMIT_STATE: dict = {
     "last_openai_attempt": 0.0,
     "cooldown_until": 0.0,
 }
+_DISK_LOAD_DONE = False
+
+
+def _load_disk_cache() -> None:
+    """Populate `_CACHE` from the JSONL file on first use. Idempotent."""
+    global _DISK_LOAD_DONE
+    if _DISK_LOAD_DONE:
+        return
+    _DISK_LOAD_DONE = True
+    if not GEO_CACHE_PATH.exists():
+        return
+    try:
+        with GEO_CACHE_PATH.open("r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    row = json.loads(line)
+                    date_key = row.get("date")
+                    payload = row.get("features")
+                    ts = float(row.get("ts", 0.0))
+                    if date_key and isinstance(payload, dict):
+                        _CACHE[date_key] = {"payload": payload, "ts": ts}
+                except (json.JSONDecodeError, TypeError, ValueError):
+                    continue
+        LOGGER.info("geo_features: loaded %d cached dates from %s", len(_CACHE), GEO_CACHE_PATH)
+    except OSError as exc:
+        LOGGER.warning("geo_features: could not read disk cache %s: %s", GEO_CACHE_PATH, exc)
+
+
+def _persist_to_disk(date_str: str, payload: dict) -> None:
+    """Append a single cache entry to the JSONL file."""
+    try:
+        GEO_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with GEO_CACHE_PATH.open("a", encoding="utf-8") as f:
+            f.write(json.dumps({"date": date_str, "features": payload, "ts": time.time()}) + "\n")
+    except OSError as exc:
+        LOGGER.warning("geo_features: could not write disk cache: %s", exc)
 
 
 def _clamp(value: float, lo: float, hi: float) -> float:
@@ -85,22 +130,23 @@ class GeoFeatureExtractor:
         Features are global-macro (not ticker-specific) so the cache is
         keyed only by date. ticker is used to refine headline queries.
         Falls back to ZERO_GEO_FEATURES on any error.
-        """
-        now = time.time()
-        with _CACHE_LOCK:
-            ts = float(_CACHE["timestamp"])
-            key = _CACHE["date_key"]
-            payload = _CACHE["payload"]
 
-        if key == date_str and payload is not None and now - ts < GEO_CACHE_TTL_SECONDS:
-            return dict(payload)
+        Cache is multi-date and backed by JSONL on disk so backtests survive
+        process restarts without re-paying LLM cost.
+        """
+        with _CACHE_LOCK:
+            _load_disk_cache()
+            entry = _CACHE.get(date_str)
+
+        now = time.time()
+        if entry is not None and now - float(entry.get("ts", 0.0)) < GEO_CACHE_TTL_SECONDS:
+            return dict(entry["payload"])
 
         features = self._extract(ticker, date_str)
 
         with _CACHE_LOCK:
-            _CACHE["timestamp"] = time.time()
-            _CACHE["date_key"] = date_str
-            _CACHE["payload"] = features
+            _CACHE[date_str] = {"payload": features, "ts": time.time()}
+        _persist_to_disk(date_str, features)
 
         return dict(features)
 
@@ -149,14 +195,14 @@ class GeoFeatureExtractor:
 
         now = time.time()
         with _CACHE_LOCK:
-            cooldown = float(_CACHE.get("cooldown_until") or 0.0)
-            last = float(_CACHE.get("last_openai_attempt") or 0.0)
+            cooldown = float(_RATE_LIMIT_STATE.get("cooldown_until") or 0.0)
+            last = float(_RATE_LIMIT_STATE.get("last_openai_attempt") or 0.0)
 
         if now < cooldown or now - last < OPENAI_MIN_INTERVAL_SECONDS:
             return None
 
         with _CACHE_LOCK:
-            _CACHE["last_openai_attempt"] = now
+            _RATE_LIMIT_STATE["last_openai_attempt"] = now
 
         headline_text = "\n".join(f"- {h}" for h in headlines[:5])
         prompt = (
@@ -199,7 +245,7 @@ class GeoFeatureExtractor:
             )
             if resp.status_code == 429:
                 with _CACHE_LOCK:
-                    _CACHE["cooldown_until"] = now + 300
+                    _RATE_LIMIT_STATE["cooldown_until"] = now + 300
                 return None
             resp.raise_for_status()
             content = resp.json()["choices"][0]["message"]["content"]
