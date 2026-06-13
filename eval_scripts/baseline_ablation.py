@@ -402,6 +402,8 @@ def run_ablation(
                         X_train, y_train = xgb.prepare_training(train_df.copy(), train_labels.copy())
                         xgb.build_model()
                         xgb.train(X_train, y_train)
+                        split_idx = int(len(X_train) * 0.8)
+                        xgb.calibrate(X_train[split_idx:], y_train[split_idx:])
 
                         dummy = pd.DataFrame({"ret_1d": [0.0] * len(test_df)})
                         X_test, y_test, _, _ = xgb.prepare_predictions(test_df.copy(), dummy)
@@ -410,7 +412,7 @@ def run_ablation(
                         y_true_all.extend(test_labels.values[:len(y_pred)])
                         y_pred_all.extend(y_pred)
                     except Exception as exc:
-                        LOGGER.debug("  window wi=%d skipped: %s", wi, exc)
+                        LOGGER.warning("  window wi=%d skipped: %s", wi, exc)
                         continue
 
                 if len(y_true_all) == 0:
