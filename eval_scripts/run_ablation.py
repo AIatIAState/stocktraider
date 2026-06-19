@@ -171,13 +171,14 @@ def main() -> None:
         tee.close()
         sys.exit(1)
 
-    # 3. Full sweep: all tickers, all baselines (resume — no --reset)
+    # 3. Full sweep: all tickers, all baselines
     tee.write(f"[{_ts()}] --- Full sweep (all tickers × B0/B1/B2/B3/B2b) ---")
     rc = run_subprocess(
         tee,
         [
             python, "-m", ABLATION_MOD,
             "--baselines", "B0", "B1", "B2", "B3", "B2b",
+            "--reset",
         ],
     )
     if rc != 0:

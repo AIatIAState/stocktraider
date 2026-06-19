@@ -84,8 +84,8 @@ DEFAULT_TICKERS = ["SPY", "QQQ", "LMT", "XOM", "TSM", "BA", "CVX"]
 # Recent dense-coverage windows (Alpha Vantage free news thickens from Oct 2025 on;
 # pre-Oct 2025 months returned only 6-14 articles, Oct 2025 onward 30-127/month).
 PERIODS = {
-    "2025_Q4": (date(2025, 10, 1), date(2025, 12, 31)),
-    "2026_Q1": (date(2026, 1, 1), date(2026, 3, 31)),
+    "2022":    (date(2022, 1, 1), date(2022, 12, 31)),   # Russia-Ukraine shock
+    "2025_Q1": (date(2025, 1, 1), date(2025, 3, 31)),    # tariff escalation
 }
 TRAIN_WINDOW = 252
 DEFAULT_HORIZON = 5
@@ -110,8 +110,10 @@ def download_gpr_data() -> pd.Series | None:
         from io import BytesIO
         df = pd.read_excel(BytesIO(resp.content), engine="openpyxl")
     except Exception as exc:
-        print(f"  Could not download GPR data: {exc}")
-        print("  B1 will use zeros for gpr_index.")
+        print(
+            f"  GPR download failed ({exc}). GERS will be NaN for all rows.\n"
+            f"  Fix: download {GPR_DATA_URL} manually, save as data/gpr_daily.csv, and re-run."
+        )
         return None
 
     gpr_col = None
