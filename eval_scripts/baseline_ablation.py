@@ -110,9 +110,43 @@ def download_gpr_data() -> pd.Series | None:
         from io import BytesIO
         df = pd.read_excel(BytesIO(resp.content), engine="openpyxl")
     except Exception as exc:
+        print(f"  GPR download failed ({exc}). Trying FRED fallback (GPRD)...")
+        return _download_gpr_from_fred()
+
+
+def _download_gpr_from_fred() -> "pd.Series | None":
+    """Fallback: fetch daily Geopolitical Risk Index from FRED series GPRD."""
+    try:
+        import requests as _req
+        fred_key = os.environ.get("FRED_API_KEY", "0c6916b4eec52ef37d4514807e36600c")
+        url = (
+            "https://api.stlouisfed.org/fred/series/observations"
+            f"?series_id=GPRD&api_key={fred_key}&file_type=json&observation_start=2000-01-01"
+        )
+        resp = _req.get(url, timeout=30)
+        resp.raise_for_status()
+        obs = resp.json().get("observations", [])
+        rows = [
+            {"date": o["date"], "gpr_index": float(o["value"])}
+            for o in obs if o.get("value", ".") != "."
+        ]
+        if not rows:
+            print("  FRED GPRD returned no observations.")
+            return None
+        df = pd.DataFrame(rows)
+        df["date"] = pd.to_datetime(df["date"])
+        df = df.set_index("date").sort_index()
+        full_index = pd.date_range(df.index.min(), date.today(), freq="D")
+        df = df.reindex(full_index).interpolate("linear")
+        df.index.name = "date"
+        GPR_CSV_PATH.parent.mkdir(parents=True, exist_ok=True)
+        df.to_csv(GPR_CSV_PATH)
+        print(f"  Saved daily GPRD from FRED to {GPR_CSV_PATH}")
+        return df["gpr_index"]
+    except Exception as exc2:
         print(
-            f"  GPR download failed ({exc}). GERS will be NaN for all rows.\n"
-            f"  Fix: download {GPR_DATA_URL} manually, save as data/gpr_daily.csv, and re-run."
+            f"  FRED GPRD download also failed ({exc2}).\n"
+            f"  GERS will be NaN. Manual fix: download {GPR_DATA_URL} and save as data/gpr_daily.csv"
         )
         return None
 
@@ -355,6 +389,7 @@ def run_ablation(
 
                 y_true_all = []
                 y_pred_all = []
+                y_dates_all: list = []
 
                 eval_dates = full_features.loc[eval_indices, "Date"].values
                 window_starts = list(range(0, len(eval_indices) - DEFAULT_HORIZON, step))
